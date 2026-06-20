@@ -1,0 +1,20 @@
+[project]
+name   = "fx2-demo"
+entry  = "app.fl"
+output = "demo-bin"
+
+[runtime]
+packages = [
+  "str-indent",
+  "str-truncate",
+  "str-rpad",
+  "str-count",
+  "math-clamp",
+  "math-lerp",
+  "math-round-n",
+  "math-sign",
+  "time-now-ms",
+  "time-elapsed",
+  "path-basename",
+  "path-dirname",
+]

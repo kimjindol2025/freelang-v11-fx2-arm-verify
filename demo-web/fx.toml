@@ -1,0 +1,16 @@
+[project]
+name   = "fx2-web-server"
+entry  = "app.fl"
+output = "web-server"
+port   = 8421
+
+[runtime]
+packages = [
+  "str-indent",
+  "str-truncate",
+  "str-rpad",
+  "math-clamp",
+  "time-now-ms",
+  "time-elapsed",
+  "path-basename",
+]
