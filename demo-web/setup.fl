@@ -1,0 +1,21 @@
+(load "/home/kimjin/freelang-v11-fx2/fx.fl")
+
+(println "== fx2 Web Server Setup ==")
+(println "")
+
+(defn install-pkg [$name]
+  (let [$r (fx-install $name)]
+    (if (get $r "ok")
+      (println (str "  ✅ " $name))
+      (println (str "  ⚠️  " $name " — " (get $r "error"))))))
+
+(install-pkg "str-indent")
+(install-pkg "str-truncate")
+(install-pkg "str-rpad")
+(install-pkg "math-clamp")
+(install-pkg "time-now-ms")
+(install-pkg "time-elapsed")
+(install-pkg "path-basename")
+
+(println "")
+(println "✅ setup 완료 — fx2로 빌드 후 서버 시작")

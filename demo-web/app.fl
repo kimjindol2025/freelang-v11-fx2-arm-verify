@@ -1,0 +1,83 @@
+;; demo-web/app.fl — fx2 Mini Web Server
+
+(define SERVER_PORT 8421)
+(define START_TIME (time-now-ms))
+
+(defn page [$title $body]
+  (str "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+       "<title>" $title "</title>"
+       "<style>body{font-family:monospace;max-width:800px;margin:40px auto;padding:0 20px;background:#0d1117;color:#e6edf3}"
+       "h1{color:#58a6ff}h2{color:#79c0ff;margin-top:32px}"
+       "pre{background:#161b22;padding:16px;border-radius:6px}"
+       ".ok{color:#3fb950}.dim{color:#8b949e}"
+       "table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #30363d;text-align:left}"
+       "a{color:#58a6ff}"
+       "</style></head><body>" $body "</body></html>"))
+
+;; ── GET / ────────────────────────────────────────────────────
+(defn handle-index [$req]
+  (let [$uptime (time-elapsed START_TIME)
+        $body   (str
+          "<h1>fx2 Web Server</h1>"
+          "<p class='dim'>C 런타임 패키지 함수를 HTTP 응답에서 사용합니다</p>"
+          "<h2>메뉴</h2><ul>"
+          "<li><a href='/demo'>함수 데모</a></li>"
+          "<li><a href='/packages'>패키지 레지스트리</a></li>"
+          "</ul>"
+          "<pre>port:   " SERVER_PORT "\nuptime: " $uptime "ms</pre>")]
+    (server_html (page "fx2" $body))))
+
+;; ── GET /demo ─────────────────────────────────────────────────
+(defn handle-demo [$req]
+  (let [$r1 (str-indent "Hello, fx2!" 4)
+        $r2 (str-truncate "FreeLang Self-Extensible Runtime" 20 "...")
+        $r3 (str-rpad "name" 15 ".")
+        $r4 (math-clamp 150 0 100)
+        $r5 (time-now-ms)
+        $r6 (str (time-elapsed START_TIME) "ms")
+        $r7 (path-basename "/demo-web/app.fl")
+        $body (str
+          "<h1>함수 데모</h1>"
+          "<p class='dim'>C로 컴파일된 패키지 함수 라이브 실행 결과</p>"
+          "<table><tr><th>함수</th><th>출력</th></tr>"
+          "<tr><td>str-indent</td><td><pre>" $r1 "</pre></td></tr>"
+          "<tr><td>str-truncate</td><td>" $r2 "</td></tr>"
+          "<tr><td>str-rpad</td><td>" $r3 "</td></tr>"
+          "<tr><td>math-clamp(150,0,100)</td><td>" $r4 "</td></tr>"
+          "<tr><td>time-now-ms</td><td>" $r5 "</td></tr>"
+          "<tr><td>time-elapsed(uptime)</td><td>" $r6 "</td></tr>"
+          "<tr><td>path-basename</td><td>" $r7 "</td></tr>"
+          "</table><br><p><a href='/'>← 홈</a></p>")]
+    (server_html (page "데모" $body))))
+
+;; ── GET /packages — JS로 렌더링 (map/str-join CGC 우회) ──────
+(defn handle-packages [$req]
+  (let [$body (str
+          "<h1>패키지 레지스트리</h1>"
+          "<div id='pkgs'><p class='dim'>로딩중...</p></div>"
+          "<br><p><a href='/'>← 홈</a></p>"
+          "<script>"
+          "fetch('http://localhost:40330/fx/packages')"
+          ".then(r=>r.json()).then(d=>{"
+          "const pkgs=d.packages;"
+          "let h='<table><tr><th>이름</th><th>버전</th><th>설명</th><th>설치</th></tr>';"
+          "pkgs.forEach(p=>{"
+          "h+='<tr><td>'+p.name+'</td><td>'+p.version+'</td><td>'+p.description+'</td>"
+          "<td>'+(p.installed?'<span style=color:#3fb950>✅</span>':'<span style=color:#8b949e>—</span>')+'</td></tr>';"
+          "});"
+          "h+='</table>';"
+          "document.getElementById('pkgs').innerHTML=h;"
+          "});"
+          "</script>")]
+    (server_html (page "패키지 레지스트리" $body))))
+
+;; ── 라우팅 ───────────────────────────────────────────────────
+(server_get "/"         "handle-index")
+(server_get "/demo"     "handle-demo")
+(server_get "/packages" "handle-packages")
+
+(println (str "🚀 fx2 Web Server — http://localhost:" SERVER_PORT))
+(println "   GET /          메인 페이지")
+(println "   GET /demo      C 함수 라이브 데모")
+(println "   GET /packages  패키지 레지스트리")
+(server_start SERVER_PORT)
