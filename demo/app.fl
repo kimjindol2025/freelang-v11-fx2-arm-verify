@@ -1,26 +1,35 @@
-;; app.fl — 설치된 C 패키지 함수를 사용하는 데모
-;; 컴파일: bash ../fl-build.sh app.fl app-bin
+;; app.fl — fx2 패키지 데모
+;; 컴파일: bash ../fl-build.sh app.fl demo-bin
 
 (println "== fx2 Runtime Package Demo ==")
+(println (str-repeat "-" 40))
 (println "")
 
-;; str-indent: C로 구현된 문자열 들여쓰기 함수
-(println "str-indent:")
-(println (str-indent "Hello, fx2!" 4))
-(println (str-indent "C 함수가 FL에서 실행됩니다." 2))
+(println "[string]")
+(println (str-indent "str-indent: 들여쓰기" 2))
+(println (str-truncate "str-truncate: 긴 문자열을 자릅니다" 20 "..."))
+(println (str-rpad "str-rpad:" 20 "."))
+(println (str "str-count 'l' in 'hello world': " (str-count "hello world" "l")))
 (println "")
 
-;; math-clamp: C로 구현된 범위 제한 함수
-(println "math-clamp:")
-(println (str "  clamp(120, 0, 100) = " (math-clamp 120 0 100)))
-(println (str "  clamp(-5,  0, 100) = " (math-clamp -5 0 100)))
-(println (str "  clamp(42,  0, 100) = " (math-clamp 42 0 100)))
+(println "[math]")
+(println (str "math-clamp(150, 0, 100) = " (math-clamp 150 0 100)))
+(println (str "math-lerp(0, 100, 0.3)  = " (math-lerp 0 100 0.3)))
+(println (str "math-round-n(3.14159,2) = " (math-round-n 3.14159 2)))
+(println (str "math-sign(-42)          = " (math-sign -42)))
 (println "")
 
-;; str-truncate: C로 구현된 문자열 자르기 함수
-(println "str-truncate:")
-(println (str-truncate "FreeLang Self-Extensible Runtime Platform" 20 "..."))
-(println (str-truncate "short" 20 "..."))
+(println "[time]")
+(let [$t0 (time-now-ms)]
+  (println (str "time-now-ms:  " $t0))
+  (println (str "time-elapsed: " (time-elapsed $t0) "ms")))
 (println "")
 
-(println "✅ git clone → (run setup) → C 런타임 패키지 설치 → 바이너리 실행")
+(println "[path]")
+(let [$p "/home/kimjin/freelang-v11-fx2/demo/app.fl"]
+  (println (str "path-basename: " (path-basename $p)))
+  (println (str "path-dirname:  " (path-dirname $p))))
+(println "")
+
+(println (str-repeat "-" 40))
+(println "git clone -> run setup -> C runtime packages -> binary")

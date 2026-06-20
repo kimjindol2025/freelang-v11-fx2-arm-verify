@@ -1,0 +1,9 @@
+{
+  "name": "time-now-ms",
+  "version": "1.0.0",
+  "args": 0,
+  "tags": ["time", "system"],
+  "description": "현재 시각 밀리초 Unix timestamp 반환 (time-now-ms)",
+  "body": "#include <time.h>\nFLValue ufl_time_now_ms(void) {\n    struct timespec ts;\n    clock_gettime(CLOCK_REALTIME, &ts);\n    return fl_int((int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);\n}",
+  "test": "(let [$t1 (time-now-ms)]\n  (println (> $t1 0)))"
+}

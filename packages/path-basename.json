@@ -1,0 +1,9 @@
+{
+  "name": "path-basename",
+  "version": "1.0.0",
+  "args": 1,
+  "tags": ["path", "file"],
+  "description": "경로에서 파일명만 추출 (path-basename path)",
+  "body": "FLValue ufl_path_basename(FLValue p) {\n    if (p.tag != FL_STRING) return p;\n    const char* src = ((FLString*)p.obj)->data;\n    const char* last = strrchr(src, '/');\n    const char* result = last ? last + 1 : src;\n    return fl_str_val(result);\n}",
+  "test": "(println (path-basename \"/home/user/docs/file.txt\"))\n(println (path-basename \"readme.md\"))"
+}

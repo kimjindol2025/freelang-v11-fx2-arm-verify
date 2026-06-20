@@ -9,9 +9,25 @@
       (println (str "  ✅ " $name " — " (get $r "action")))
       (println (str "  ⚠️  " $name " — " (get $r "action"))))))
 
+;; string
 (install-pkg "str-indent")
-(install-pkg "math-clamp")
 (install-pkg "str-truncate")
+(install-pkg "str-rpad")
+(install-pkg "str-count")
+
+;; math
+(install-pkg "math-clamp")
+(install-pkg "math-lerp")
+(install-pkg "math-round-n")
+(install-pkg "math-sign")
+
+;; time
+(install-pkg "time-now-ms")
+(install-pkg "time-elapsed")
+
+;; path
+(install-pkg "path-basename")
+(install-pkg "path-dirname")
 
 (println "")
 (println "설치됨:")

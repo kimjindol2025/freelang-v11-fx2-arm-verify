@@ -1,0 +1,9 @@
+{
+  "name": "math-sign",
+  "version": "1.0.0",
+  "args": 1,
+  "tags": ["math", "number"],
+  "description": "부호 반환: 양수=1 음수=-1 0=0 (math-sign v)",
+  "body": "FLValue ufl_math_sign(FLValue v) {\n    double d = (v.tag == FL_INT) ? (double)v.i : v.f;\n    if (d > 0) return fl_int(1);\n    if (d < 0) return fl_int(-1);\n    return fl_int(0);\n}",
+  "test": "(println (math-sign 42))\n(println (math-sign -7))\n(println (math-sign 0))"
+}
