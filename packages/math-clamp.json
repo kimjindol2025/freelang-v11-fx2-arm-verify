@@ -1,0 +1,9 @@
+{
+  "name": "math-clamp",
+  "version": "1.0.0",
+  "args": 3,
+  "tags": ["math", "number"],
+  "description": "값을 min~max 범위로 제한 (math-clamp v min max)",
+  "body": "FLValue ufl_math_clamp(FLValue v, FLValue lo, FLValue hi) {\n    double val = (v.tag == FL_INT) ? (double)v.i : v.f;\n    double low = (lo.tag == FL_INT) ? (double)lo.i : lo.f;\n    double high = (hi.tag == FL_INT) ? (double)hi.i : hi.f;\n    if (val < low) val = low;\n    if (val > high) val = high;\n    return fl_float(val);\n}",
+  "test": "(println (math-clamp 15 0 10))\n(println (math-clamp -3 0 10))\n(println (math-clamp 5 0 10))"
+}
