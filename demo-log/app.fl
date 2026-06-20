@@ -1,0 +1,85 @@
+;; demo-log/app.fl — fx2 Log Analyzer
+;; 사용법: ./log-analyzer [logfile]
+
+(define LOG_FILE "sample.log")
+
+(define t0 (time-now-ms))
+
+(println (str "== fx2 Log Analyzer =="))
+(println (str "파일: " (path-basename LOG_FILE)))
+(println "")
+
+;; 파일 읽기
+(define log-content (file-read LOG_FILE))
+(define lines (str-lines log-content))
+(define total (length lines))
+
+;; ── HTTP 메서드 카운트 ────────────────────────────────────────
+(define cnt-get    (str-count log-content "GET /"))
+(define cnt-post   (str-count log-content "POST /"))
+(define cnt-put    (str-count log-content "PUT /"))
+(define cnt-delete (str-count log-content "DELETE /"))
+
+;; ── 상태 코드 카운트 ──────────────────────────────────────────
+(define cnt-2xx (+ (str-count log-content " 200 ")
+                   (str-count log-content " 201 ")
+                   (str-count log-content " 204 ")))
+(define cnt-3xx (+ (str-count log-content " 301 ")
+                   (str-count log-content " 302 ")
+                   (str-count log-content " 304 ")))
+(define cnt-4xx (+ (str-count log-content " 400 ")
+                   (str-count log-content " 401 ")
+                   (str-count log-content " 403 ")
+                   (str-count log-content " 404 ")))
+(define cnt-5xx (str-count log-content " 500 "))
+
+;; ── 주요 경로 카운트 ──────────────────────────────────────────
+(define paths (list
+  "/" "/api/users" "/api/posts" "/api/health"
+  "/login" "/dashboard" "/api/metrics" "/api/search"
+  "/api/orders" "/static/app.js"))
+
+;; ── 출력 헬퍼 ────────────────────────────────────────────────
+(defn clamp-int [$v $lo $hi]
+  (if (< $v $lo) $lo (if (> $v $hi) $hi $v)))
+
+(defn bar [$n $max $width]
+  (let [$filled (clamp-int (/ (* $width $n) $max) 0 $width)
+        $empty  (- $width $filled)]
+    (str (str-repeat "=" $filled) (str-repeat "." $empty))))
+
+(defn pct [$n $total]
+  (if (> $total 0)
+    (str (floor (/ (* $n 100) $total)) "%")
+    "0%"))
+
+;; ── 요약 출력 ────────────────────────────────────────────────
+(println (str "총 요청: " total "건"))
+(println "")
+
+(println "── HTTP 메서드 ──────────────────────")
+(println (str (str-rpad "GET"    8 " ") (str-rpad (str cnt-get) 6 " ")    (bar cnt-get total 20)))
+(println (str (str-rpad "POST"   8 " ") (str-rpad (str cnt-post) 6 " ")   (bar cnt-post total 20)))
+(println (str (str-rpad "PUT"    8 " ") (str-rpad (str cnt-put) 6 " ")    (bar cnt-put total 20)))
+(println (str (str-rpad "DELETE" 8 " ") (str-rpad (str cnt-delete) 6 " ") (bar cnt-delete total 20)))
+(println "")
+
+(println "── 상태 코드 ────────────────────────")
+(println (str (str-rpad "2xx" 8 " ") (str-rpad (str cnt-2xx) 6 " ") (bar cnt-2xx total 20) " " (pct cnt-2xx total)))
+(println (str (str-rpad "3xx" 8 " ") (str-rpad (str cnt-3xx) 6 " ") (bar cnt-3xx total 20) " " (pct cnt-3xx total)))
+(println (str (str-rpad "4xx" 8 " ") (str-rpad (str cnt-4xx) 6 " ") (bar cnt-4xx total 20) " " (pct cnt-4xx total)))
+(println (str (str-rpad "5xx" 8 " ") (str-rpad (str cnt-5xx) 6 " ") (bar cnt-5xx total 20) " " (pct cnt-5xx total)))
+(println "")
+
+(println "── 경로별 요청 수 ───────────────────")
+(doseq [$path paths]
+  (let [$cnt (str-count log-content (str " " $path " "))
+        $label (str-rpad (str-truncate $path 16 "..") 18 " ")
+        $count (str-rpad (str $cnt) 5 " ")]
+    (if (> $cnt 0)
+      (println (str $label $count (bar $cnt 30 15))))))
+
+(println "")
+
+(println (str "분석 시간: " (time-elapsed t0) "ms"))
+(println "── 완료 ─────────────────────────────")

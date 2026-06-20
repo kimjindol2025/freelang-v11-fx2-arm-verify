@@ -1,0 +1,16 @@
+[project]
+name   = "fx2-log-analyzer"
+entry  = "app.fl"
+output = "log-analyzer"
+
+[runtime]
+packages = [
+  "str-lines",
+  "str-count",
+  "str-truncate",
+  "str-rpad",
+  "math-clamp",
+  "time-now-ms",
+  "time-elapsed",
+  "path-basename",
+]

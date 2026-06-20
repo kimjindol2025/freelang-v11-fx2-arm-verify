@@ -681,4 +681,214 @@ FLValue pdf_img_obj(FLValue img, FLValue obj_id);
 /* ── FL:USER_SECTION:BEGIN ── fl-source-manager가 관리 ── */
 
 /* FL:USER_SECTION:BEGIN */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+FLValue ufl_str_indent(FLValue a0, FLValue a1);
+FLValue str_indent(FLValue a0, FLValue a1);
+
+
+
+
+
+FLValue ufl_math_lerp(FLValue a0, FLValue a1, FLValue a2);
+FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2);
+
+FLValue ufl_math_round_n(FLValue a0, FLValue a1);
+FLValue math_round_n(FLValue a0, FLValue a1);
+
+FLValue ufl_math_sign(FLValue a0);
+FLValue math_sign(FLValue a0);
+
+
+
+
+FLValue ufl_path_dirname(FLValue a0);
+FLValue path_dirname(FLValue a0);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+FLValue ufl_str_lines(FLValue a0);
+FLValue str_lines(FLValue a0);
+
+FLValue ufl_str_count(FLValue a0, FLValue a1);
+FLValue str_count(FLValue a0, FLValue a1);
+
+FLValue ufl_str_truncate(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
+
+FLValue ufl_str_rpad(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
+
+FLValue ufl_math_clamp(FLValue a0, FLValue a1, FLValue a2);
+FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
+
+FLValue ufl_time_now_ms(void);
+FLValue time_now_ms(void);
+
+FLValue ufl_time_elapsed(FLValue a0);
+FLValue time_elapsed(FLValue a0);
+
+FLValue ufl_path_basename(FLValue a0);
+FLValue path_basename(FLValue a0);
 /* FL:USER_SECTION:END */
