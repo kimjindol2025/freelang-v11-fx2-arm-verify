@@ -1,0 +1,22 @@
+(load "/home/kimjin/freelang-v11-fx2/fx.fl")
+
+(println "== fx2 Setup ==")
+(println "")
+
+(defn install-pkg [$name]
+  (let [$r (fx-install $name)]
+    (if (get $r "ok")
+      (println (str "  ✅ " $name " — " (get $r "action")))
+      (println (str "  ⚠️  " $name " — " (get $r "action"))))))
+
+(install-pkg "str-indent")
+(install-pkg "math-clamp")
+(install-pkg "str-truncate")
+
+(println "")
+(println "설치됨:")
+(doseq [$p (fx-installed)]
+  (println (str "  - " (get $p "name") " v" (get $p "version"))))
+
+(println "")
+(println "✅ setup 완료 — fx2로 빌드하면 함수 사용 가능")
