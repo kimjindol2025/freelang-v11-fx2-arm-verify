@@ -1,0 +1,14 @@
+{
+  "name": "freelang-v11-fx2",
+  "version": "0.1.0",
+  "language": "C (GCC, ELF 바이너리)",
+  "status": "in_progress",
+  "description": "FreeLang fx2 — 패키지 시스템 내장 C 네이티브 런타임 (실험실)",
+  "note": "기존 freelang-v11-fx와 완전 분리. fl-source-manager가 관리하는 대상.",
+  "manager": "http://localhost:40330",
+  "entry": "fl-build.sh",
+  "commands": {
+    "build": "bash fl-build.sh <input.fl> [output]",
+    "test": "bash fl-build.sh test.fl test-bin && ./test-bin"
+  }
+}
