@@ -1,0 +1,50 @@
+;; Phase C smoke test — fx.fl 인터페이스 전체 검증
+(load "/home/kimjin/freelang-v11-fx2/fx.fl")
+
+(println "=== fx-list: 레지스트리 전체 ===")
+(let [$pkgs (fx-list)]
+  (doseq [$p $pkgs]
+    (let [$status (if (get $p "installed") "[✅]" "[  ]")]
+      (println (str $status " " (get $p "name") " v" (get $p "version"))))))
+
+(println "")
+(println "=== fx-install: str-truncate 설치 ===")
+(let [$r (fx-install "str-truncate")]
+  (fx-print-result $r))
+
+(println "")
+(println "=== fx-list: 설치 후 상태 ===")
+(let [$pkgs (fx-list)]
+  (doseq [$p $pkgs]
+    (let [$status (if (get $p "installed") "[✅]" "[  ]")]
+      (println (str $status " " (get $p "name"))))))
+
+(println "")
+(println "=== fx-info: str-indent 상세 ===")
+(let [$info (fx-info "str-indent")]
+  (println (str "  name:    " (get $info "name")))
+  (println (str "  version: " (get $info "version")))
+  (println (str "  args:    " (get $info "args")))
+  (println (str "  hash:    " (get $info "bodyHash")))
+  (println (str "  builds:  " (get $info "buildCount"))))
+
+(println "")
+(println "=== fx-test: math-clamp 재테스트 ===")
+(let [$r (fx-test "math-clamp")]
+  (println (str "  ok: " (get $r "ok")))
+  (println (str "  output: " (get $r "output")))
+  (println (str "  ms: " (get (get $r "build") "durationMs"))))
+
+(println "")
+(println "=== fx-remove: str-truncate 제거 ===")
+(let [$r (fx-remove "str-truncate")]
+  (println (str "  ok: " (get $r "ok") " | action: " (get $r "action"))))
+
+(println "")
+(println "=== fx-installed: 설치된 함수만 ===")
+(let [$installed (fx-installed)]
+  (doseq [$p $installed]
+    (println (str "  " (get $p "name")))))
+
+(println "")
+(println "✅ Phase C smoke test 완료")

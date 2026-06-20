@@ -1,0 +1,59 @@
+;; fx.fl — FreeLang Runtime Package Interface
+;; Phase C: Self-Extensible Runtime
+;;
+;; 사용법:
+;;   (load "/home/kimjin/freelang-v11-fx2/fx.fl")
+;;   (fx-install "str-indent")
+;;   (fx-remove  "str-indent")
+;;   (fx-list)
+;;   (fx-info    "str-indent")
+
+(define FX_BASE "http://localhost:40330")
+
+;; ── 설치 ────────────────────────────────────────────────────────
+;; 반환: {:ok true :name "..." :action "imported" :durationMs N}
+;;       {:ok false :action "rolled_back" :build {:log "..."}}
+(defn fx-install [$name]
+  (let [$res (http_post_json
+               (str FX_BASE "/fx/fns/import")
+               {"name" $name "build" true})]
+    (get $res "data")))
+
+;; ── 제거 ────────────────────────────────────────────────────────
+;; 반환: {:ok true :name "..." :action "deleted"}
+;;       {:ok false :error "not found"}
+(defn fx-remove [$name]
+  (let [$res (http_delete_json
+               (str FX_BASE "/fx/fns/" $name))]
+    (get $res "data")))
+
+;; ── 목록 (레지스트리 전체) ──────────────────────────────────────
+;; 반환: [{:name "..." :version "..." :installed true/false} ...]
+(defn fx-list []
+  (let [$res (http_get_json (str FX_BASE "/fx/packages") {})]
+    (get (get $res "data") "packages")))
+
+;; ── 설치된 함수만 ──────────────────────────────────────────────
+(defn fx-installed []
+  (filter (fn [$p] (get $p "installed")) (fx-list)))
+
+;; ── 상세 정보 ───────────────────────────────────────────────────
+;; 반환: {:name :version :args :tags :added :bodyHash :lastBuild ...}
+(defn fx-info [$name]
+  (let [$res (http_get_json (str FX_BASE "/fx/fns/" $name) {})]
+    (get $res "data")))
+
+;; ── 재테스트 ────────────────────────────────────────────────────
+;; 반환: {:ok true :output "..." :build {:durationMs N}}
+(defn fx-test [$name]
+  (let [$res (http_post_json
+               (str FX_BASE "/fx/fns/" $name "/test")
+               {})]
+    (get $res "data")))
+
+;; ── 헬퍼: 설치 결과 출력 ────────────────────────────────────────
+(defn fx-print-result [$result]
+  (if (get $result "ok")
+    (println (str "[fx] " (get $result "action") ": " (get $result "name")
+                  " (" (get (get $result "build") "durationMs") "ms)"))
+    (println (str "[fx] ERROR: " (get $result "error")))))
