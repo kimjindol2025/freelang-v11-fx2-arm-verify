@@ -76,4 +76,16 @@
     "fix": "fxb_{0} 함수가 runtime.h에 선언되지 않았습니다\n        → runtime.h 에 추가: FLValue fxb_{0}(FLValue, ...);\n        → 또는 케밥케이스 확인: (fxb-{1}) 사용",
     "fl_convert": true
   }
+  ,{
+    "id": "variable-name-builtin-collision",
+    "gcc": "called object '([a-z_]+)' is not a function",
+    "cause": "FL 변수명이 C 내장 함수명과 충돌 (ok, error, open, close, read, write 등)",
+    "fix": "변수명을 예약 C 함수명과 다르게 지으세요\n        ❌ (let [$ok (some-fn)] ...) — ok()는 C 내장\n        ✅ (let [$is-ok (some-fn)] ...) 또는 $result, $ret, $success\n        충돌 위험 이름: ok, error, open, close, read, write, exit, abort"
+  }
+  ,{
+    "id": "post-body-no-content-type",
+    "gcc": "",
+    "cause": "Content-Type 없는 POST 요청 body가 파싱된 맵이 아닌 raw string으로 전달됨",
+    "fix": "body가 맵인지 string인지 분기 필요:\n        (let [$raw (get $req \"body\")]\n          (if (null? (get $raw \"b64\"))\n            ;; 파싱된 맵\n            (let [$b64 (get $raw \"b64\")] ...)\n            ;; raw string — json-parse 후 처리\n            (let [$parsed (json-parse $raw)\n                  $b64    (get $parsed \"b64\")] ...)))\n        또는 클라이언트에서 Content-Type: application/json 헤더 강제"
+  }
 ]
