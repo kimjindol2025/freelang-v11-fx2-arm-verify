@@ -1,0 +1,9 @@
+[
+  {
+    "id": "number-to-string-alias",
+    "gcc": "undefined reference to `number_to_string'",
+    "cause": "FL 표준 함수 이름 변경됨",
+    "fix": "number->string 은 (str $n) 또는 (number->string $n) 을 사용하세요",
+    "fl_convert": false
+  }
+]
