@@ -1,6 +1,6 @@
 /**
  * freelang-v11-fx2 — 사용자 패키지 함수
- * 이 파일은 fl-source-manager가 자동 관리합니다.
+ * fl-resolve-deps.py가 module :use 선언에서 자동 생성합니다.
  * 직접 수정하지 마세요.
  */
 #include "runtime.h"
@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+
 
 /* FL:USER_SECTION:BEGIN */
 /* FL:FN:str-indent */
@@ -22,87 +23,6 @@ FLValue ufl_str_indent(FLValue s, FLValue n) {
     memcpy(buf + cnt, src, slen);
     buf[cnt + slen] = 0;
     return fl_str_val(buf);
-}
-/* FL:FN_END */
-
-/* FL:FN:math-lerp */
-FLValue ufl_math_lerp(FLValue a, FLValue b, FLValue t) {
-    double da = (a.tag == FL_INT) ? (double)a.i : a.f;
-    double db = (b.tag == FL_INT) ? (double)b.i : b.f;
-    double dt = (t.tag == FL_INT) ? (double)t.i : t.f;
-    return fl_float(da + (db - da) * dt);
-}
-/* FL:FN_END */
-
-/* FL:FN:math-round-n */
-#include <math.h>
-FLValue ufl_math_round_n(FLValue v, FLValue n) {
-    double dv = (v.tag == FL_INT) ? (double)v.i : v.f;
-    int64_t places = (n.tag == FL_INT) ? n.i : 0;
-    if (places < 0) places = 0;
-    double factor = pow(10.0, (double)places);
-    return fl_float(round(dv * factor) / factor);
-}
-/* FL:FN_END */
-
-/* FL:FN:math-sign */
-FLValue ufl_math_sign(FLValue v) {
-    double d = (v.tag == FL_INT) ? (double)v.i : v.f;
-    if (d > 0) return fl_int(1);
-    if (d < 0) return fl_int(-1);
-    return fl_int(0);
-}
-/* FL:FN_END */
-
-/* FL:FN:path-dirname */
-FLValue ufl_path_dirname(FLValue p) {
-    if (p.tag != FL_STRING) return p;
-    const char* src = ((FLString*)p.obj)->data;
-    const char* last = strrchr(src, '/');
-    if (!last) return fl_str_val(".");
-    size_t len = last - src;
-    if (len == 0) return fl_str_val("/");
-    char* buf = (char*)fl_arena_alloc(len + 1);
-    memcpy(buf, src, len);
-    buf[len] = 0;
-    return fl_str_val(buf);
-}
-/* FL:FN_END */
-
-/* FL:FN:str-lines */
-FLValue ufl_str_lines(FLValue s) {
-    if (s.tag != FL_STRING) return fl_vec_new();
-    const char* src = ((FLString*)s.obj)->data;
-    FLValue builder = fl_vec_builder_new();
-    const char* start = src;
-    for (const char* p = src; ; p++) {
-        if (*p == '\n' || *p == '\0') {
-            size_t len = p - start;
-            if (len > 0) {
-                char* buf = (char*)fl_arena_alloc(len + 1);
-                memcpy(buf, start, len);
-                buf[len] = 0;
-                fl_vec_builder_push(builder, fl_str_val(buf));
-            }
-            if (*p == '\0') break;
-            start = p + 1;
-        }
-    }
-    return fl_vec_builder_freeze(builder);
-}
-/* FL:FN_END */
-
-/* FL:FN:str-count */
-FLValue ufl_str_count(FLValue s, FLValue sub) {
-    if (s.tag != FL_STRING || sub.tag != FL_STRING) return fl_int(0);
-    const char* haystack = ((FLString*)s.obj)->data;
-    const char* needle   = ((FLString*)sub.obj)->data;
-    size_t nlen = strlen(needle);
-    if (nlen == 0) return fl_int(0);
-    int64_t count = 0;
-    const char* p = haystack;
-    while ((p = strstr(p, needle)) != NULL) { count++; p += nlen; }
-    return fl_int(count);
 }
 /* FL:FN_END */
 
@@ -143,6 +63,43 @@ FLValue ufl_str_rpad(FLValue s, FLValue n, FLValue ch) {
 }
 /* FL:FN_END */
 
+/* FL:FN:str-count */
+FLValue ufl_str_count(FLValue s, FLValue sub) {
+    if (s.tag != FL_STRING || sub.tag != FL_STRING) return fl_int(0);
+    const char* haystack = ((FLString*)s.obj)->data;
+    const char* needle   = ((FLString*)sub.obj)->data;
+    size_t nlen = strlen(needle);
+    if (nlen == 0) return fl_int(0);
+    int64_t count = 0;
+    const char* p = haystack;
+    while ((p = strstr(p, needle)) != NULL) { count++; p += nlen; }
+    return fl_int(count);
+}
+/* FL:FN_END */
+
+/* FL:FN:str-lines */
+FLValue ufl_str_lines(FLValue s) {
+    if (s.tag != FL_STRING) return fl_vec_new();
+    const char* src = ((FLString*)s.obj)->data;
+    FLValue builder = fl_vec_builder_new();
+    const char* start = src;
+    for (const char* p = src; ; p++) {
+        if (*p == '\n' || *p == '\0') {
+            size_t len = p - start;
+            if (len > 0) {
+                char* buf = (char*)fl_arena_alloc(len + 1);
+                memcpy(buf, start, len);
+                buf[len] = 0;
+                fl_vec_builder_push(builder, fl_str_val(buf));
+            }
+            if (*p == '\0') break;
+            start = p + 1;
+        }
+    }
+    return fl_vec_builder_freeze(builder);
+}
+/* FL:FN_END */
+
 /* FL:FN:math-clamp */
 FLValue ufl_math_clamp(FLValue v, FLValue lo, FLValue hi) {
     double val = (v.tag == FL_INT) ? (double)v.i : v.f;
@@ -151,6 +108,60 @@ FLValue ufl_math_clamp(FLValue v, FLValue lo, FLValue hi) {
     if (val < low) val = low;
     if (val > high) val = high;
     return fl_float(val);
+}
+/* FL:FN_END */
+
+/* FL:FN:math-lerp */
+FLValue ufl_math_lerp(FLValue a, FLValue b, FLValue t) {
+    double da = (a.tag == FL_INT) ? (double)a.i : a.f;
+    double db = (b.tag == FL_INT) ? (double)b.i : b.f;
+    double dt = (t.tag == FL_INT) ? (double)t.i : t.f;
+    return fl_float(da + (db - da) * dt);
+}
+/* FL:FN_END */
+
+/* FL:FN:math-round-n */
+#include <math.h>
+FLValue ufl_math_round_n(FLValue v, FLValue n) {
+    double dv = (v.tag == FL_INT) ? (double)v.i : v.f;
+    int64_t places = (n.tag == FL_INT) ? n.i : 0;
+    if (places < 0) places = 0;
+    double factor = pow(10.0, (double)places);
+    return fl_float(round(dv * factor) / factor);
+}
+/* FL:FN_END */
+
+/* FL:FN:math-sign */
+FLValue ufl_math_sign(FLValue v) {
+    double d = (v.tag == FL_INT) ? (double)v.i : v.f;
+    if (d > 0) return fl_int(1);
+    if (d < 0) return fl_int(-1);
+    return fl_int(0);
+}
+/* FL:FN_END */
+
+/* FL:FN:path-basename */
+FLValue ufl_path_basename(FLValue p) {
+    if (p.tag != FL_STRING) return p;
+    const char* src = ((FLString*)p.obj)->data;
+    const char* last = strrchr(src, '/');
+    const char* result = last ? last + 1 : src;
+    return fl_str_val(result);
+}
+/* FL:FN_END */
+
+/* FL:FN:path-dirname */
+FLValue ufl_path_dirname(FLValue p) {
+    if (p.tag != FL_STRING) return p;
+    const char* src = ((FLString*)p.obj)->data;
+    const char* last = strrchr(src, '/');
+    if (!last) return fl_str_val(".");
+    size_t len = last - src;
+    if (len == 0) return fl_str_val("/");
+    char* buf = (char*)fl_arena_alloc(len + 1);
+    memcpy(buf, src, len);
+    buf[len] = 0;
+    return fl_str_val(buf);
 }
 /* FL:FN_END */
 
@@ -174,69 +185,46 @@ FLValue ufl_time_elapsed(FLValue start) {
 }
 /* FL:FN_END */
 
-/* FL:FN:path-basename */
-FLValue ufl_path_basename(FLValue p) {
-    if (p.tag != FL_STRING) return p;
-    const char* src = ((FLString*)p.obj)->data;
-    const char* last = strrchr(src, '/');
-    const char* result = last ? last + 1 : src;
-    return fl_str_val(result);
-}
-/* FL:FN_END */
 /* FL:USER_SECTION:END */
 
 /* FL:SHIM_SECTION:BEGIN */
-
 /* FL:SHIM_FN:str-indent */
 FLValue str_indent(FLValue a0, FLValue a1) { return ufl_str_indent(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-truncate */
 FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_truncate(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-rpad */
 FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_rpad(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-count */
 FLValue str_count(FLValue a0, FLValue a1) { return ufl_str_count(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-lines */
 FLValue str_lines(FLValue a0) { return ufl_str_lines(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-clamp */
 FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_clamp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-lerp */
 FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_lerp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-round-n */
 FLValue math_round_n(FLValue a0, FLValue a1) { return ufl_math_round_n(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-sign */
 FLValue math_sign(FLValue a0) { return ufl_math_sign(a0); }
 /* FL:SHIM_FN_END */
-
-/* FL:SHIM_FN:time-now-ms */
-FLValue time_now_ms(void) { return ufl_time_now_ms(); }
-/* FL:SHIM_FN_END */
-
-/* FL:SHIM_FN:time-elapsed */
-FLValue time_elapsed(FLValue a0) { return ufl_time_elapsed(a0); }
-/* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:path-basename */
 FLValue path_basename(FLValue a0) { return ufl_path_basename(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:path-dirname */
 FLValue path_dirname(FLValue a0) { return ufl_path_dirname(a0); }
 /* FL:SHIM_FN_END */
-
+/* FL:SHIM_FN:time-now-ms */
+FLValue time_now_ms(void) { return ufl_time_now_ms(); }
+/* FL:SHIM_FN_END */
+/* FL:SHIM_FN:time-elapsed */
+FLValue time_elapsed(FLValue a0) { return ufl_time_elapsed(a0); }
+/* FL:SHIM_FN_END */
 /* FL:SHIM_SECTION:END */
