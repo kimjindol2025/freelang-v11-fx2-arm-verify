@@ -1867,3 +1867,8 @@ FLValue ok_p(FLValue v) {
     if (v.tag == FL_BOOL) return fl_bool(v.b);
     return fl_bool(1);
 }
+
+/* set: (set m key val) → assoc 동일. cgc-bin이 3-arg set으로 emit */
+FLValue set(FLValue m, FLValue key, FLValue val) {
+    return fl_map_set(m, key, val);
+}
