@@ -1,0 +1,36 @@
+;; fl-rules-runner.fl — fx.rules 실행기 (v11)
+;; 사용법: node bootstrap.js run fl-rules-runner.fl <rules.fl> <source.fl>
+
+(define $argv       (process-argv))
+(define $rules-file (nth $argv 2))
+(define $src-file   (nth $argv 3))
+
+(when (or (nil? $rules-file) (nil? $src-file))
+  (println "사용법: fl-rules-runner.fl <rules.fl> <source.fl>")
+  (process-exit 1))
+
+(define $src   (file-read $src-file))
+(define $lines (str-split $src "\n"))
+
+(define $checks (atom (list)))
+(define $has-error (atom false))
+
+(defn check-error [$desc $fn]
+  (swap! $checks append (list {"level" "error" "desc" $desc "fn" $fn})))
+
+(defn check-warn [$desc $fn]
+  (swap! $checks append (list {"level" "warn"  "desc" $desc "fn" $fn})))
+
+(load $rules-file)
+
+(map (fn [$check]
+  (let [$result ((get $check "fn") $src $lines)]
+    (when (not (nil? $result))
+      (let [$level (get $check "level")
+            $desc  (get $check "desc")
+            $msg   (if (string? $result) $result "규칙 위반")]
+        (println (str $level ":" $desc ":" $msg))
+        (when (= $level "error")
+          (reset! $has-error true)))))) (deref $checks))
+
+(when (deref $has-error) (process-exit 1))

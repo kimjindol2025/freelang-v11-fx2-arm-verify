@@ -254,6 +254,45 @@ if [ "$SEMANTIC_EXIT" -ne 0 ]; then
   exit 1
 fi
 
+# ─── 2.6. 프로젝트 커스텀 규칙 (fx.rules) ──────────────────────────
+FL_RULES="$(dirname "$FL_INPUT")/fx.rules"
+if [ ! -f "$FL_RULES" ]; then
+  FL_RULES="$(pwd)/fx.rules"
+fi
+
+if [ -f "$FL_RULES" ]; then
+  echo "📋 프로젝트 규칙 검사 ($FL_RULES)..."
+  RULES_OUT=$(node /home/kimjin/freelang-v11/bootstrap.js run \
+    "$SCRIPT_DIR/fl-rules-runner.fl" \
+    "$FL_RULES" "$PREPROCESSED" 2>&1 | grep -E "^(error|warn):")
+
+  RULES_ERRORS=0
+  RULES_WARNS=0
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    LEVEL="${line%%:*}"
+    REST="${line#*:}"
+    DESC="${REST%%:*}"
+    MSG="${REST#*:}"
+    if [ "$LEVEL" = "error" ]; then
+      echo "  ❌ [규칙] $DESC"
+      echo "     $MSG"
+      RULES_ERRORS=$((RULES_ERRORS + 1))
+    elif [ "$LEVEL" = "warn" ]; then
+      echo "  ⚠️  [규칙] $DESC"
+      echo "     $MSG"
+      RULES_WARNS=$((RULES_WARNS + 1))
+    fi
+  done <<< "$RULES_OUT"
+
+  if [ "$RULES_ERRORS" -gt 0 ]; then
+    echo "❌ 프로젝트 규칙 위반 ${RULES_ERRORS}개 — 컴파일 중단"
+    rm -f "$PREPROCESSED"
+    exit 1
+  fi
+  [ "$RULES_WARNS" -eq 0 ] && [ -z "$RULES_OUT" ] && echo "   ✅ 규칙 OK"
+fi
+
 # ─── 3. cgc-bin: FL → C ──────────────────────────────────────────
 echo "⚙️  FL → C 컴파일..."
 COMPILE_OUT=$("$CGC_BIN" "$PREPROCESSED" "$C_FILE" 2>&1)
