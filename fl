@@ -2,11 +2,16 @@
 # fl — FreeLang 프로젝트 CLI
 # 사용법:
 #   fl new <name> [--profile p1,p2,...]
+#   fl build <input.fl> [output] [--no-net]
+#   fl plan  <input.fl> [output]
+#   fl check <input.fl>
+#   fl graph <input.fl>
 #   fl profile list
-#   fl profile add <name>
-#   fl profile add <name>@<version>
+#   fl profile add <name>[@version]
 
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FX_HOST="${FX_HOST:-http://localhost:40330}"
+CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
 
 _ok()   { echo "✓ $*"; }
 _fail() { echo "✗ $*" >&2; }
@@ -15,6 +20,34 @@ _info() { echo "  $*"; }
 cmd=$1; shift
 
 case "$cmd" in
+# ─────────────────────────────
+# fl build <input.fl> [output] [flags]
+# fl plan  <input.fl> [output]
+# fl check <input.fl>
+# fl graph <input.fl>
+# ─────────────────────────────
+build)
+  exec bash "$SCRIPT_DIR/fl-build.sh" "$@"
+  ;;
+
+plan)
+  INPUT=$1; shift
+  OUTPUT="${1:-$(basename "${INPUT%.fl}")}"
+  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" plan
+  ;;
+
+check)
+  INPUT=$1
+  OUTPUT="$(basename "${INPUT%.fl}")"
+  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" check
+  ;;
+
+graph)
+  INPUT=$1
+  OUTPUT="$(basename "${INPUT%.fl}")"
+  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" graph
+  ;;
+
 # ─────────────────────────────
 # fl new <name> [--profile p1,p2,...]
 # ─────────────────────────────
@@ -160,19 +193,27 @@ help|--help|-h|'')
   cat << HELP
 fl — FreeLang 프로젝트 CLI
 
-명령어:
-  fl new <name> [--profile p1,p2,...]   프로젝트 생성 + 런타임 초기화
-  fl profile list                        설치된/사용 가능한 프로파일 목록
-  fl profile add <name>[@version]        프로파일 추가
+빌드:
+  fl build <input.fl> [output] [--no-net]   ELF 빌드
+  fl plan  <input.fl> [output]              의존성 선언 출력 (빌드 없음)
+  fl check <input.fl>                       declared vs installed 검사
+  fl graph <input.fl>                       의존성 트리 출력
+
+프로젝트:
+  fl new <name> [--profile p1,p2,...]       프로젝트 생성 + 런타임 초기화
+  fl profile list                           설치된/사용 가능한 프로파일 목록
+  fl profile add <name>[@version]           프로파일 추가
 
 환경변수:
-  FX_HOST  fl-source-manager 주소 (기본: http://localhost:40330)
+  FX_HOST   fl-source-manager 주소 (기본: http://localhost:40330)
+  CGC_BIN   cgc 바이너리 경로
 
 예시:
   fl new my-api --profile web,math
-  fl new cli-tool --profile string,path
-  fl profile add time
-  fl profile list
+  fl build blog.fl heungbo-blog
+  fl plan  blog.fl
+  fl check blog.fl
+  fl graph blog.fl
 HELP
   ;;
 
