@@ -470,6 +470,7 @@ FLValue float_p(FLValue v);
 FLValue bool_p(FLValue v);
 FLValue nil_p(FLValue v);
 FLValue ok_p(FLValue v);
+FLValue set(FLValue m, FLValue key, FLValue val);
 FLValue req_param(FLValue req, FLValue key);
 FLValue req_header(FLValue req, FLValue key);
 FLValue req_body(FLValue req);

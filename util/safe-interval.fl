@@ -1,0 +1,11 @@
+;; util/safe-interval.fl
+;; set_interval은 콜백 throw를 삼킴 (FL runtime 함정 ⑪)
+;; safe-interval은 try/catch로 감싸서 에러를 출력하고 계속 실행
+
+(defn safe-interval [ms f]
+  (set_interval ms
+    (fn []
+      (try
+        (f)
+        (catch err
+          (println (str "[safe-interval] error: " err)))))))

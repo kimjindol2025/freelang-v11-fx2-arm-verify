@@ -18,6 +18,8 @@ ARGS=()
 for arg in "$@"; do
   if [ "$arg" = "--no-net" ]; then NO_NET=1;
   elif [ "$arg" = "--plan" ]; then PLAN_MODE=1;
+  elif [ "$arg" = "--check" ]; then PLAN_MODE=check;
+  elif [ "$arg" = "--graph" ]; then PLAN_MODE=graph;
   else ARGS+=("$arg"); fi
 done
 
@@ -32,11 +34,15 @@ OUTPUT="${ARGS[1]:-$FL_BASE}"
 C_FILE="/tmp/fl_build_$$.c"
 
 # ─── --plan: 선언 정보 출력 후 종료 (빌드 없이) ──────────────────
-if [ "$PLAN_MODE" = "1" ]; then
-  echo "📋 fl build --plan"
-  echo ""
-  python3 "$SCRIPT_DIR/fl-build-plan.py" "$FL_INPUT" "$SCRIPT_DIR" "$OUTPUT"
-  exit 0
+if [ "$PLAN_MODE" = "1" ] || [ "$PLAN_MODE" = "check" ] || [ "$PLAN_MODE" = "graph" ]; then
+  if [ "$PLAN_MODE" = "1" ]; then echo "📋 fl build --plan"; fi
+  if [ "$PLAN_MODE" = "check" ]; then echo ""; fi
+  if [ "$PLAN_MODE" = "graph" ]; then echo "📊 fl build --graph"; echo ""; fi
+  MODE_ARG="plan"
+  [ "$PLAN_MODE" = "check" ] && MODE_ARG="check"
+  [ "$PLAN_MODE" = "graph" ] && MODE_ARG="graph"
+  python3 "$SCRIPT_DIR/fl-build-plan.py" "$FL_INPUT" "$SCRIPT_DIR" "$OUTPUT" "$MODE_ARG"
+  exit $?
 fi
 
 echo "🔨 FreeLang 네이티브 빌드"
@@ -84,11 +90,16 @@ def strip_module_form(src):
                 break
     return src[:start] + "; [module form stripped by fl-build]\n" + src[end+1:]
 
-def inline_loads(path, visited=None):
+def inline_loads(path, visited=None, cycle_stack=None):
     is_root = visited is None
     if visited is None:
         visited = set()
+    if cycle_stack is None:
+        cycle_stack = []
     abs_path = os.path.abspath(path)
+    if abs_path in cycle_stack:
+        print(f"[fl-build] \u26a0\ufe0f  순환 의존 감지: {path}", file=sys.stderr)
+        return "; [fl-build] CYCLE DETECTED: " + path
     if abs_path in visited:
         return ""
     visited.add(abs_path)
@@ -110,7 +121,7 @@ def inline_loads(path, visited=None):
                 load_path = os.path.join(base_dir, load_path)
             print(f"; [fl-build] 인라인: {load_path}", file=sys.stderr)
             result.append(f"; --- inlined: {load_path} ---")
-            result.append(inline_loads(load_path, visited))
+            result.append(inline_loads(load_path, visited, cycle_stack + [abs_path]))
             result.append(f"; --- end inlined: {load_path} ---")
         else:
             result.append(line)
