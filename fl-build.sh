@@ -151,6 +151,109 @@ if [ -f "$CHECK_PARENS" ]; then
   fi
 fi
 
+# ─── 2.5. 시맨틱 분석 (Semi-static Linter) ─────────────────────────
+echo "🧠 시맨틱 분석..."
+SEMANTIC_ERRORS=0
+python3 - "$PREPROCESSED" << 'PYEOF'
+import sys, re
+
+src = open(sys.argv[1]).read()
+lines = src.splitlines()
+errors = []
+warnings = []
+
+# ── 헬퍼: 라인 번호 찾기 ─────────────────────────────────────────
+def find_line(pattern, start=0):
+    for i, l in enumerate(lines[start:], start+1):
+        if re.search(pattern, l):
+            return i
+    return 0
+
+# ── 1. SQL ? 개수 vs 인자 개수 불일치 ───────────────────────────
+# 패턴: (fxb-sqlite-*-p DB "sql..." [...]) 또는 (fxb-sqlite-exec-p DB "sql..." [...])
+sql_pat = re.compile(
+    r'\(fxb-sqlite-(?:query|exec)-p\s+\S+\s+"([^"]+)"\s+(\[.*?\])',
+    re.DOTALL
+)
+for m in sql_pat.finditer(src):
+    sql_str = m.group(1)
+    args_str = m.group(2)
+    q_count = sql_str.count('?')
+    # 배열 안 원소 수: $var 또는 "str" 또는 숫자
+    arg_items = re.findall(r'\$\w+|"[^"]*"|\d+', args_str)
+    arg_count = len(arg_items)
+    if q_count != arg_count:
+        line_no = src[:m.start()].count('\n') + 1
+        errors.append(
+            f"  📍 줄 {line_no}: SQL ? 개수({q_count}) ≠ 인자 개수({arg_count})\n"
+            f"     SQL: {sql_str[:60]}{'...' if len(sql_str)>60 else ''}\n"
+            f"     💡 배열 원소를 {q_count}개로 맞추세요"
+        )
+
+# ── 2. fxb-sqlite-query (비-p 버전)에 ? 포함 → SQL 인젝션 위험 ──
+unsafe_pat = re.compile(r'\(fxb-sqlite-query\s+\S+\s+"([^"]*\?[^"]*)"')
+for m in unsafe_pat.finditer(src):
+    line_no = src[:m.start()].count('\n') + 1
+    warnings.append(
+        f"  ⚠️  줄 {line_no}: fxb-sqlite-query 에 ? 포함 → SQL 인젝션 위험\n"
+        f"     💡 (fxb-sqlite-query-p DB sql [param ...]) 로 교체하세요"
+    )
+
+# ── 3. $var 정의 전 사용 (단순 스코프 분석) ──────────────────────
+# defn 파라미터와 let 바인딩 수집, 사용 시점과 비교
+defined = set()
+# 함수 파라미터 ($x $y ...)
+for m in re.finditer(r'\(defn\s+\S+\s+\[([^\]]*)\]', src):
+    for p in re.findall(r'\$(\w+)', m.group(1)):
+        defined.add(p)
+# let 바인딩 [$var expr]
+for m in re.finditer(r'\(let\s+\[([^\]]+)\]', src, re.DOTALL):
+    for p in re.findall(r'\$(\w+)', m.group(1).split(']')[0]):
+        defined.add(p)
+# fn 파라미터
+for m in re.finditer(r'\(fn\s+\[([^\]]*)\]', src):
+    for p in re.findall(r'\$(\w+)', m.group(1)):
+        defined.add(p)
+
+# ── 4. define 없는 전역 사용 감지 (보수적으로) ──────────────────
+defines = set(re.findall(r'\(define\s+(\$\w+)', src))
+# 전역에서 $로 시작하는 사용 중 define 없는 것 (false positive 많아 경고만)
+# → 이건 스킵 (CGC가 더 잘 잡음)
+
+# ── 5. (or nil "fallback") 패턴 — nil 전파 경고 ─────────────────
+# nil이 첫 인자로 직접 오면 의미 없음
+nil_or_pat = re.compile(r'\(or\s+nil\s+')
+for m in nil_or_pat.finditer(src):
+    line_no = src[:m.start()].count('\n') + 1
+    warnings.append(
+        f"  ⚠️  줄 {line_no}: (or nil ...) — 첫 인자가 nil 리터럴\n"
+        f"     💡 (or $var fallback) 패턴을 확인하세요"
+    )
+
+# ── 출력 ─────────────────────────────────────────────────────────
+has_error = len(errors) > 0
+
+if errors:
+    print(f"❌ 시맨틱 오류 {len(errors)}개:")
+    for e in errors:
+        print(e)
+if warnings:
+    print(f"⚠️  시맨틱 경고 {len(warnings)}개:")
+    for w in warnings:
+        print(w)
+if not errors and not warnings:
+    print("   ✅ 시맨틱 OK")
+
+sys.exit(1 if has_error else 0)
+PYEOF
+
+SEMANTIC_EXIT=$?
+if [ "$SEMANTIC_EXIT" -ne 0 ]; then
+  echo "❌ 시맨틱 분석 실패 — 컴파일 중단"
+  rm -f "$PREPROCESSED"
+  exit 1
+fi
+
 # ─── 3. cgc-bin: FL → C ──────────────────────────────────────────
 echo "⚙️  FL → C 컴파일..."
 COMPILE_OUT=$("$CGC_BIN" "$PREPROCESSED" "$C_FILE" 2>&1)
