@@ -33,6 +33,22 @@ echo "   입력: $FL_INPUT"
 echo "   출력: $OUTPUT"
 echo ""
 
+# ─── 0. module declaration 처리 ──────────────────────────────────
+MODULE_JSON=$(python3 "$SCRIPT_DIR/fl-module-parse.py" "$FL_INPUT" 2>/dev/null || true)
+if [ -n "$MODULE_JSON" ]; then
+  MODULE_NAME=$(echo "$MODULE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))")
+  USE_PROFILES=$(echo "$MODULE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(' '.join(d.get('use', [])))")
+  MODULE_VER=$(echo "$MODULE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version',''))")
+
+  echo "📦 module: $MODULE_NAME v$MODULE_VER"
+  if [ -n "$USE_PROFILES" ]; then
+    echo "   :use → $USE_PROFILES"
+    echo "   의존성 해결 중..."
+    python3 "$SCRIPT_DIR/fl-resolve-deps.py" $USE_PROFILES "$SCRIPT_DIR"
+    echo ""
+  fi
+fi
+
 # ─── 1. load 인라인 전처리 ───────────────────────────────────────
 # (load "path.fl") 를 파일 내용으로 인라인 치환
 PREPROCESSED="/tmp/fl_preprocessed_$$.fl"
@@ -40,7 +56,25 @@ PREPROCESSED="/tmp/fl_preprocessed_$$.fl"
 python3 << PYEOF
 import re, os, sys
 
+def strip_module_form(src):
+    """(module ...) 블록 제거 — cgc-bin은 module form 미지원"""
+    start = src.find('(module')
+    if start == -1:
+        return src
+    depth = 0
+    end = start
+    for i, ch in enumerate(src[start:], start):
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    return src[:start] + "; [module form stripped by fl-build]\n" + src[end+1:]
+
 def inline_loads(path, visited=None):
+    is_root = visited is None
     if visited is None:
         visited = set()
     abs_path = os.path.abspath(path)
@@ -53,6 +87,9 @@ def inline_loads(path, visited=None):
     except:
         print(f"; [fl-build] 경고: {path} 읽기 실패", file=sys.stderr)
         return ""
+    # module form 제거 (루트 파일만) — cgc-bin은 module form 미지원
+    if is_root:
+        content = strip_module_form(content)
     result = []
     for line in content.splitlines():
         # (load "...") 또는 (load '...')
