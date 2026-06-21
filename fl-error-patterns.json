@@ -51,8 +51,15 @@
   {
     "id": "str-includes-return",
     "gcc": "comparison between pointer and integer",
-    "cause": "str-includes는 int(0/1) 반환 — boolean 아님",
-    "fix": "str-includes 반환값은 int\n        → (= (str-includes $s $sub) 1) 로 비교\n        → (if (str-includes $s $sub) ...) 는 동작하지만 주의",
+    "cause": "str-includes boolean 반환 — int 1과 비교하면 항상 false",
+    "fix": "str-includes는 boolean(true/false) 반환\n        → (= (str-includes $s $sub) 1) 금지 — 항상 false\n        → (str-includes $s $sub) 그대로 truthy 사용\n        → (filter (fn [$l] (str-includes $l \"keyword\")) $lines) 패턴",
+    "fl_convert": false
+  },
+  {
+    "id": "closure-capture-outer-let",
+    "gcc": "'([a-z_]+)' undeclared.*__fl_anon",
+    "cause": "fn 내부에서 outer let 바인딩 변수 접근 불가 (클로저 캡처 미지원)",
+    "fix": "fx2 fn은 클로저 아님 — outer let 변수를 직접 참조 불가\n        → atom 우회 패턴 사용:\n        (define _MY_VAL (atom nil))\n        ...\n        $_ (reset! _MY_VAL $outer-let-var)\n        (map (fn [$x] ... (deref _MY_VAL) ...) $coll)\n        → 또는 fn 파라미터로 값 전달 가능하면 reduce 사용",
     "fl_convert": false
   },
   {
