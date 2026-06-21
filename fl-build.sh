@@ -9,7 +9,7 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="${CGC_BIN:-/root/freelang-v11/bin/cgc-bin}"
+CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
 
 # 플래그 파싱
 NO_NET=0

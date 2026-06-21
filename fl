@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # fl — FreeLang 프로젝트 CLI
 # 사용법:
+#   fl build [--no-net] [--plan]
+#   fl run [args...]
 #   fl new <name> [--profile p1,p2,...]
-#   fl profile list
-#   fl profile add <name>
-#   fl profile add <name>@<version>
+#   fl pkg add <name>
+#   fl profile list|add <name>[@version]
 
 FX_HOST="${FX_HOST:-http://localhost:40330}"
+SCRIPT_REAL="$(readlink -f "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 
 _ok()   { echo "✓ $*"; }
 _fail() { echo "✗ $*" >&2; }
@@ -156,23 +159,169 @@ else:
   ;;
 
 # ─────────────────────────────
+# fl build [--no-net] [--plan] [--check] [--graph]
+# ─────────────────────────────
+build)
+  BUILD_FLAGS=()
+  for arg in "$@"; do BUILD_FLAGS+=("$arg"); done
+
+  # fx.toml 읽기
+  TOML="fx.toml"
+  if [[ ! -f "$TOML" ]]; then
+    _fail "fx.toml 없음 (fl new <name> 으로 프로젝트 생성 먼저)"; exit 1
+  fi
+
+  PARSED=$(python3 "$SCRIPT_DIR/fl-toml-parse.py" "$TOML" 2>/dev/null)
+  ENTRY=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('entry',''))" 2>/dev/null)
+  OUTPUT=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('output',''))" 2>/dev/null)
+  PACKAGES=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); pkgs=d.get('runtime',{}).get('packages',[]); print('\n'.join(pkgs))" 2>/dev/null)
+  PROFILES=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); ps=d.get('runtime',{}).get('profiles',[]); print('\n'.join(ps))" 2>/dev/null)
+
+  if [[ -z "$ENTRY" ]]; then _fail "fx.toml에 [project] entry 없음"; exit 1; fi
+  if [[ -z "$OUTPUT" ]]; then OUTPUT="${ENTRY%.fl}"; fi
+  if [[ ! -f "$ENTRY" ]]; then _fail "entry 파일 없음: $ENTRY"; exit 1; fi
+
+  echo "🔨 fl build: $ENTRY → $OUTPUT"
+  echo ""
+
+  # 런타임 초기화 (packages 또는 profiles 있을 때)
+  if [[ -n "$PACKAGES" ]] || [[ -n "$PROFILES" ]]; then
+    echo "📦 런타임 초기화..."
+
+    # packages 배열 → JSON
+    PKG_JSON=$(echo "$PARSED" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+rt = d.get('runtime', {})
+pkgs = rt.get('packages', [])
+profs = rt.get('profiles', [])
+payload = {}
+if pkgs:
+    payload['packages'] = pkgs
+if profs:
+    payload['profiles'] = profs
+print(json.dumps(payload))
+" 2>/dev/null)
+
+    INIT_RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
+      -H "Content-Type: application/json" \
+      -d "$PKG_JSON" 2>/dev/null)
+
+    INIT_OK=$(echo "$INIT_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+    if [[ "$INIT_OK" == "True" ]]; then
+      echo "$INIT_RESULT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+added = [p['name'] for p in d.get('packages',[]) if p.get('action') != 'skipped']
+skipped = [p['name'] for p in d.get('packages',[]) if p.get('action') == 'skipped']
+if added:   print('  + ' + ', '.join(added))
+if skipped: print('  ↩ skipped: ' + ', '.join(skipped))
+" 2>/dev/null
+      _ok "런타임 준비 완료"
+    else
+      ERR=$(echo "$INIT_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
+      _fail "런타임 초기화 실패: $ERR"
+      echo "$INIT_RESULT" | python3 -m json.tool 2>/dev/null
+      exit 1
+    fi
+    echo ""
+  fi
+
+  # fl-build.sh 실행
+  exec bash "$SCRIPT_DIR/fl-build.sh" "$ENTRY" "$OUTPUT" "${BUILD_FLAGS[@]}"
+  ;;
+
+# ─────────────────────────────
+# fl run [args...]
+# ─────────────────────────────
+run)
+  TOML="fx.toml"
+  if [[ ! -f "$TOML" ]]; then _fail "fx.toml 없음"; exit 1; fi
+  PARSED=$(python3 "$SCRIPT_DIR/fl-toml-parse.py" "$TOML" 2>/dev/null)
+  OUTPUT=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('output',''))" 2>/dev/null)
+  if [[ -z "$OUTPUT" ]]; then _fail "fx.toml에 output 없음"; exit 1; fi
+  if [[ ! -f "./$OUTPUT" ]]; then
+    _info "바이너리 없음 — 먼저 빌드합니다..."
+    bash "$0" build || exit 1
+    echo ""
+  fi
+  exec "./$OUTPUT" "$@"
+  ;;
+
+# ─────────────────────────────
+# fl pkg add <name>
+# fl pkg list
+# ─────────────────────────────
+pkg)
+  subcmd=$1; shift
+  case "$subcmd" in
+    add)
+      NAME=$1
+      if [[ -z "$NAME" ]]; then echo "사용법: fl pkg add <name>" >&2; exit 1; fi
+      # packages/*.json 확인
+      PKG_FILE="$SCRIPT_DIR/packages/$NAME.json"
+      if [[ ! -f "$PKG_FILE" ]]; then
+        _fail "패키지 없음: $NAME (packages/$NAME.json 없음)"; exit 1
+      fi
+      echo "📦 패키지 추가: $NAME"
+      BODY=$(cat "$PKG_FILE")
+      RESULT=$(curl -s -X POST "$FX_HOST/fx/fns" \
+        -H "Content-Type: application/json" \
+        -d "$BODY" 2>/dev/null)
+      OK=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+      if [[ "$OK" == "True" ]]; then
+        _ok "$NAME 등록"
+        # 빌드
+        BUILD_RESULT=$(curl -s -X POST "$FX_HOST/fx/build" 2>/dev/null)
+        BUILD_OK=$(echo "$BUILD_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+        if [[ "$BUILD_OK" == "True" ]]; then
+          _ok "런타임 빌드 완료"
+        else
+          _fail "런타임 빌드 실패"
+        fi
+      else
+        ERR=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
+        _fail "$NAME 등록 실패: $ERR"
+      fi
+      ;;
+    list)
+      curl -s "$FX_HOST/fx/fns" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+fns=d.get('functions',d.get('fns',[]))
+print(f'설치된 패키지 {len(fns)}개:')
+for f in sorted(fns, key=lambda x: x.get('name','')):
+    print(f'  {f.get(\"name\",\"?\")}  ({f.get(\"args\",\"?\")}인자)')
+" 2>/dev/null
+      ;;
+    *)
+      echo "사용법: fl pkg add <name> | fl pkg list" ;;
+  esac
+  ;;
+
+# ─────────────────────────────
 help|--help|-h|'')
   cat << HELP
 fl — FreeLang 프로젝트 CLI
 
 명령어:
+  fl build [--no-net] [--plan]           fx.toml 읽어 런타임 초기화 + ELF 빌드
+  fl run [args...]                       빌드 후 바이너리 실행 (없으면 자동 빌드)
   fl new <name> [--profile p1,p2,...]   프로젝트 생성 + 런타임 초기화
-  fl profile list                        설치된/사용 가능한 프로파일 목록
+  fl pkg list                            설치된 패키지 목록
+  fl pkg add <name>                      패키지 추가 + 런타임 재빌드
+  fl profile list                        프로파일 목록
   fl profile add <name>[@version]        프로파일 추가
 
 환경변수:
   FX_HOST  fl-source-manager 주소 (기본: http://localhost:40330)
 
 예시:
-  fl new my-api --profile web,math
-  fl new cli-tool --profile string,path
-  fl profile add time
-  fl profile list
+  fl new my-api --profile web,math       프로젝트 생성
+  cd my-api && fl build                  빌드
+  fl run                                 실행
+  fl pkg add str-starts-with             패키지 추가
+  fl build --plan                        의존성 그래프만 출력
 HELP
   ;;
 
