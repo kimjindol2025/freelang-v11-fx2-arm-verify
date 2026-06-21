@@ -176,30 +176,49 @@ else
   python3 - "$SYNTAX_LOG" "$PREPROCESSED" << 'PYEOF'
 import sys, re
 
-syntax_log  = open(sys.argv[1]).read()
-fl_lines    = open(sys.argv[2]).read().splitlines()
+syntax_log = open(sys.argv[1]).read()
+fl_lines   = open(sys.argv[2]).read().splitlines()
+errors     = re.findall(r'<fl>:(\d+):\d+: error: (.+)', syntax_log)
 
-# GCC 에러: <fl>:N:col: error: msg
-errors = re.findall(r'<fl>:(\d+):\d+: error: (.+)', syntax_log)
+def c_to_fl(name):
+    n = name.replace('_', '-')
+    if n.startswith('fl-'): n = n[3:]
+    return n
 
 seen = set()
 for lineno_s, msg in errors:
     lineno = int(lineno_s) - 1
     fl_line = fl_lines[lineno].strip() if lineno < len(fl_lines) else ''
-
-    # C 함수명 → FL 이름 힌트 (GCC는 유니코드 곱슬따옴표 사용)
-    fn_match = re.search(r"called object .([^'‘’]+).", msg)
-    fl_hint  = fn_match.group(1).replace('_', '-') if fn_match else ''
-
     key = (lineno, msg[:60])
     if key in seen: continue
     seen.add(key)
 
     print(f"  📍 FL 줄 {lineno+1}: {msg}")
-    if fl_line:
-        print(f"     {fl_line[:120]}")
-    if fl_hint and fl_hint != fl_line:
-        print(f"     💡 fxb-{fl_hint} 로 교체하세요")
+    if fl_line: print(f"     코드: {fl_line[:120]}")
+
+    # "called object X is not a function"
+    m = re.search(r"called object .([^''']+).", msg)
+    if m:
+        fn = m.group(1)
+        print(f"     💡 {fn} 는 함수가 아닙니다 → (fxb-{c_to_fl(fn)}) 로 교체하세요")
+
+    # "too few/many arguments"
+    m = re.search(r"too (few|many) arguments to function .([^''']+).", msg)
+    if m:
+        direction, fn = m.group(1), m.group(2)
+        print(f"     💡 ({c_to_fl(fn)}) 인자 수 {'부족' if direction=='few' else '초과'} — 함수 정의 확인")
+
+    # "undeclared"
+    m = re.search(r".([^''']+). undeclared", msg)
+    if m:
+        sym = m.group(1)
+        print(f"     💡 {sym} 미선언 → runtime.h 확인 또는 (fxb-{c_to_fl(sym)}) 패턴 사용")
+
+    # "incompatible type"
+    if 'incompatible type' in msg:
+        print(f"     💡 타입 불일치 — FLValue 필요 위치에 int/char* 전달 여부 확인")
+        print(f"        (없는 함수 호출 시 GCC가 int 반환으로 추론 → 이 에러 발생)")
+
     print()
 PYEOF
   rm -f "$SYNTAX_LOG" "$C_FILE" "$PREPROCESSED"
@@ -244,7 +263,91 @@ if gcc -O2 -Werror=implicit-function-declaration -o "$OUTPUT" $C_FILE $RUNTIME_S
   rm -f "$GCC_LOG"
 else
   echo "❌ gcc 컴파일 실패:"
-  cat "$GCC_LOG"
+  python3 - "$GCC_LOG" "$PREPROCESSED" << 'PYEOF'
+import sys, re
+
+gcc_log   = open(sys.argv[1]).read()
+fl_lines  = open(sys.argv[2]).read().splitlines() if len(sys.argv) > 2 else []
+
+# ── FL 줄 역추적 패턴 ────────────────────────────────────────
+fl_errors   = re.findall(r'<fl>:(\d+):\d+: (?:error|warning): (.+)', gcc_log)
+# ── 링커 에러 ────────────────────────────────────────────────
+undef_refs  = re.findall(r"undefined reference to `([^']+)'", gcc_log)
+# ── implicit declaration ──────────────────────────────────────
+implicit    = re.findall(r"implicit declaration of function .([^''']+).", gcc_log)
+
+def c_to_fl(name):
+    """C 함수명 → FL 힌트 (fl_some_fn → some-fn, fxb_sqlite_query → fxb-sqlite-query)"""
+    n = name.replace('_', '-')
+    if n.startswith('fl-'): n = n[3:]
+    return n
+
+seen = set()
+
+# 1) FL 줄 추적 가능한 에러
+for lineno_s, msg in fl_errors:
+    lineno = int(lineno_s) - 1
+    fl_line = fl_lines[lineno].strip() if lineno < len(fl_lines) else ''
+    key = (lineno, msg[:60])
+    if key in seen: continue
+    seen.add(key)
+
+    print(f"\n  📍 FL 줄 {lineno+1}: {msg}")
+    if fl_line:
+        print(f"     코드: {fl_line[:120]}")
+
+    # 패턴별 힌트
+    # "called object X is not a function"
+    m = re.search(r"called object .([^''']+).", msg)
+    if m:
+        fn = m.group(1)
+        print(f"     💡 {fn} 는 함수가 아닙니다 → (fxb-{c_to_fl(fn)}) 로 교체하세요")
+
+    # "too few/many arguments"
+    m = re.search(r"too (few|many) arguments to function .([^''']+).", msg)
+    if m:
+        direction, fn = m.group(1), m.group(2)
+        print(f"     💡 ({c_to_fl(fn)}) 인자 수 {'부족' if direction=='few' else '초과'} — 함수 정의 확인")
+
+    # "incompatible type"
+    if 'incompatible type' in msg:
+        print(f"     💡 타입 불일치 — FLValue 가 필요한 곳에 int/char* 전달 여부 확인")
+
+    # "undeclared"
+    m = re.search(r".([^''']+). undeclared", msg)
+    if m:
+        sym = m.group(1)
+        fl_name = c_to_fl(sym)
+        print(f"     💡 {sym} 미선언 → runtime.h 확인 또는 (fxb-{fl_name}) 패턴 사용")
+
+# 2) 링커 에러 (undefined reference)
+if undef_refs:
+    print(f"\n  🔗 링커 에러 (undefined reference):")
+    seen_undef = set()
+    for sym in undef_refs:
+        if sym in seen_undef: continue
+        seen_undef.add(sym)
+        fl_name = c_to_fl(sym)
+        if sym.startswith('fxb_sqlite'):
+            print(f"     ❌ {sym}")
+            print(f"        → SQLite 함수: (fxb-{fl_name.lstrip('fxb-')}) 패턴 사용")
+        elif sym.startswith('fl_') or sym.startswith('server_') or sym.startswith('fl'):
+            print(f"     ❌ {sym}")
+            print(f"        → runtime.h 에 선언 누락 또는 소스 파일 누락")
+        else:
+            print(f"     ❌ {sym}")
+            print(f"        → 외부 라이브러리 누락 (-l 링크 옵션 확인)")
+
+# 3) implicit declaration
+if implicit:
+    print(f"\n  ⚠️  암묵적 선언 (runtime.h 누락):")
+    for fn in set(implicit):
+        print(f"     {fn} → runtime.h 에 FLValue {fn}(FLValue); 추가 필요")
+
+if not fl_errors and not undef_refs and not implicit:
+    print("\n  (원본 GCC 로그:)")
+    print(gcc_log[:2000])
+PYEOF
   rm -f "$C_FILE" "$PREPROCESSED" "$GCC_LOG"
   exit 1
 fi
