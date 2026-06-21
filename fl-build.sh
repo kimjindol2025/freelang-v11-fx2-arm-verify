@@ -9,7 +9,7 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="/home/kimjin/freelang-v11/bin/cgc-bin"
+CGC_BIN="${CGC_BIN:-/root/freelang-v11/bin/cgc-bin}"
 
 # --no-net 플래그: openssl/curl 없이 stub으로 빌드
 NO_NET=0
@@ -124,7 +124,8 @@ RUNTIME_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/error.c $NET_SRCS $RUNTIME_DIR/aliases.c \
   $RUNTIME_DIR/sqlite.c $RUNTIME_DIR/debug.c $RUNTIME_DIR/gc.c \
   $RUNTIME_DIR/jit.c $RUNTIME_DIR/fx-builtin-shim.c \
-  $RUNTIME_DIR/regex.c $RUNTIME_DIR/smtp.c $RUNTIME_DIR/pdf_ttf.c $RUNTIME_DIR/pdf_img.c"
+  $RUNTIME_DIR/regex.c $RUNTIME_DIR/smtp.c $RUNTIME_DIR/pdf_ttf.c $RUNTIME_DIR/pdf_img.c \
+  $RUNTIME_DIR/builtins-shim.c"
 
 # mariadb.c는 dlopen 방식이라 헤더 불필요 — 항상 포함
 if [ -f "$RUNTIME_DIR/mariadb.c" ]; then

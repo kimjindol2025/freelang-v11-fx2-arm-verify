@@ -160,6 +160,7 @@ typedef struct FLClosure {
 
 FLValue fl_fn_new(FLValue (*call)(FLClosure*, int, FLValue*),
                   uint32_t nenv, FLValue* env);
+FLValue fl_make_native_fn(FLValue (*call)(FLClosure*, int, FLValue*), const char* name);
 FLValue fl_fn_call(FLValue fn, int argc, FLValue* argv);
 
 /* ── S8: 고차함수 ── */
@@ -417,7 +418,8 @@ FLValue str_ends_with(FLValue s, FLValue suffix);
 FLValue str_split(FLValue s, FLValue sep);
 FLValue str_pad_left(FLValue s, FLValue width, FLValue ch);
 FLValue str_pad_right(FLValue s, FLValue width, FLValue ch);
-FLValue str_repeat(FLValue s, FLValue n);
+FLValue _impl_str_repeat(FLValue s, FLValue n);
+extern FLValue str_repeat;
 FLValue str_contains(FLValue s, FLValue sub);
 FLValue str_includes(FLValue s, FLValue sub);
 FLValue parse_int(FLValue s);
@@ -599,7 +601,8 @@ FLValue fl_zip_map(FLValue keys, FLValue vals);
 /* 문자열 유틸 */
 FLValue str_char_at(FLValue s, FLValue idx);
 FLValue str_length(FLValue s);
-FLValue str_reverse(FLValue s);
+FLValue _impl_str_reverse(FLValue s);
+extern FLValue str_reverse;
 FLValue num_to_str(FLValue n);
 FLValue pad_zero(FLValue n, FLValue width);
 /* 수학 유틸 */
@@ -612,6 +615,10 @@ extern FLValue server_req_body;
 /* throw: old cgc-bin generates fl_fn_call(throw,...) — shim maps to fl_throw() */
 /* In C (not C++), 'throw' is a valid identifier */
 extern FLValue throw;
+/* apply, max, str: cgc-bin generates fl_fn_call(...) for first-class usage */
+extern FLValue apply;
+extern FLValue max;
+extern FLValue str;
 
 /* fx 독립 언어 — 투명 alias 선언 */
 FLValue sqlite_open_v2(FLValue path);
@@ -822,27 +829,22 @@ FLValue pdf_img_obj(FLValue img, FLValue obj_id);
 
 
 
-FLValue ufl_str_indent(FLValue a0, FLValue a1);
-FLValue str_indent(FLValue a0, FLValue a1);
+extern FLValue str_indent;
 
 
 
 
 
-FLValue ufl_math_lerp(FLValue a0, FLValue a1, FLValue a2);
-FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2);
+extern FLValue math_lerp;
 
-FLValue ufl_math_round_n(FLValue a0, FLValue a1);
-FLValue math_round_n(FLValue a0, FLValue a1);
+extern FLValue math_round_n;
 
-FLValue ufl_math_sign(FLValue a0);
-FLValue math_sign(FLValue a0);
+extern FLValue math_sign;
 
 
 
 
-FLValue ufl_path_dirname(FLValue a0);
-FLValue path_dirname(FLValue a0);
+extern FLValue path_dirname;
 
 
 
@@ -868,27 +870,19 @@ FLValue path_dirname(FLValue a0);
 
 
 
-FLValue ufl_str_lines(FLValue a0);
-FLValue str_lines(FLValue a0);
+extern FLValue str_lines;
 
-FLValue ufl_str_count(FLValue a0, FLValue a1);
-FLValue str_count(FLValue a0, FLValue a1);
+extern FLValue str_count;
 
-FLValue ufl_str_truncate(FLValue a0, FLValue a1, FLValue a2);
-FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
+extern FLValue str_truncate;
 
-FLValue ufl_str_rpad(FLValue a0, FLValue a1, FLValue a2);
-FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
+extern FLValue str_rpad;
 
-FLValue ufl_math_clamp(FLValue a0, FLValue a1, FLValue a2);
-FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
+extern FLValue math_clamp;
 
-FLValue ufl_time_now_ms(void);
-FLValue time_now_ms(void);
+extern FLValue time_now_ms;
 
-FLValue ufl_time_elapsed(FLValue a0);
-FLValue time_elapsed(FLValue a0);
+extern FLValue time_elapsed;
 
-FLValue ufl_path_basename(FLValue a0);
-FLValue path_basename(FLValue a0);
+extern FLValue path_basename;
 /* FL:USER_SECTION:END */

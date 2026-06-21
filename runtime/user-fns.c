@@ -184,3 +184,49 @@ FLValue ufl_path_basename(FLValue p) {
 }
 /* FL:FN_END */
 /* FL:USER_SECTION:END */
+
+/* FL:SHIM_SECTION:BEGIN
+ * cgc-bin은 알 수 없는 외부 함수를 fl_fn_call(name, ...) 형태로 생성한다.
+ * 첫 인자가 FLValue여야 하므로 ufl_* 구현을 FLValue 글로벌로 노출한다.
+ * fl-source-manager가 user-fns.c를 재생성할 때 이 섹션도 갱신해야 한다.
+ */
+
+/* ── 글로벌 선언 ───────────────────────────────── */
+FLValue str_indent, str_truncate, str_rpad, str_count, str_lines;
+FLValue math_clamp, math_lerp, math_round_n, math_sign;
+FLValue time_now_ms, time_elapsed;
+FLValue path_basename, path_dirname;
+
+/* ── 래퍼 (arity별 디스패치) ────────────────────── */
+static FLValue w_str_indent   (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_indent(a[0],a[1]);}
+static FLValue w_str_truncate (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_truncate(a[0],a[1],a[2]);}
+static FLValue w_str_rpad     (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_rpad(a[0],a[1],a[2]);}
+static FLValue w_str_count    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_count(a[0],a[1]);}
+static FLValue w_str_lines    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_lines(a[0]);}
+static FLValue w_math_clamp   (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_clamp(a[0],a[1],a[2]);}
+static FLValue w_math_lerp    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_lerp(a[0],a[1],a[2]);}
+static FLValue w_math_round_n (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_round_n(a[0],a[1]);}
+static FLValue w_math_sign    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_sign(a[0]);}
+static FLValue w_time_now_ms  (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_time_now_ms();}
+static FLValue w_time_elapsed (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_time_elapsed(a[0]);}
+static FLValue w_path_basename(FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_path_basename(a[0]);}
+static FLValue w_path_dirname (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_path_dirname(a[0]);}
+
+/* ── 초기화 (arena 미초기화 전이므로 malloc 폴백 사용) ── */
+__attribute__((constructor))
+static void user_fns_shim_init(void) {
+    str_indent    = fl_make_native_fn(w_str_indent,    "str_indent");
+    str_truncate  = fl_make_native_fn(w_str_truncate,  "str_truncate");
+    str_rpad      = fl_make_native_fn(w_str_rpad,      "str_rpad");
+    str_count     = fl_make_native_fn(w_str_count,     "str_count");
+    str_lines     = fl_make_native_fn(w_str_lines,     "str_lines");
+    math_clamp    = fl_make_native_fn(w_math_clamp,    "math_clamp");
+    math_lerp     = fl_make_native_fn(w_math_lerp,     "math_lerp");
+    math_round_n  = fl_make_native_fn(w_math_round_n,  "math_round_n");
+    math_sign     = fl_make_native_fn(w_math_sign,     "math_sign");
+    time_now_ms   = fl_make_native_fn(w_time_now_ms,   "time_now_ms");
+    time_elapsed  = fl_make_native_fn(w_time_elapsed,  "time_elapsed");
+    path_basename = fl_make_native_fn(w_path_basename, "path_basename");
+    path_dirname  = fl_make_native_fn(w_path_dirname,  "path_dirname");
+}
+/* FL:SHIM_SECTION:END */

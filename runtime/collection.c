@@ -205,6 +205,11 @@ FLValue fl_fn_new(FLValue (*call)(FLClosure*, int, FLValue*),
     FLValue r; r.tag = FL_FN; r.obj = (FLObject*)cl; return r;
 }
 
+FLValue fl_make_native_fn(FLValue (*call)(FLClosure*, int, FLValue*), const char* name) {
+    (void)name;   /* SIS 메타데이터 확장 예약 — 현재는 무시 */
+    return fl_fn_new(call, 0, NULL);
+}
+
 FLValue fl_fn_call(FLValue fn, int argc, FLValue* argv) {
     if (fn.tag != FL_FN) { fputs("error: not a fn\n", stderr); exit(1); }
     FLClosure* cl = (FLClosure*)fn.obj;

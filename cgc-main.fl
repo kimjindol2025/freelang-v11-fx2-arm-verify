@@ -1,0 +1,31 @@
+;; cgc-main.fl — Callable ABI 통일 회귀 테스트
+;; R1: str_repeat / str_reverse (built-in, fl_fn_call 경로)
+;; R2+R3: 13 user package functions (fl_fn_call 경로)
+;; R4: apply (higher-order, fl_fn_call 경로) — user lambda 사용
+;;     ※ cgc-bin 버그: + - * 를 first-class 참조 시 '_' 로 생성 → 회피
+
+(println "=== R1: built-in callable (str_repeat / str_reverse) ===")
+(println (str-repeat "-" 30))
+(println (str-reverse "FreeLang"))
+
+(println "=== R2+R3: 13 user package functions ===")
+(println (str-indent "str-indent OK" 2))
+(println (str-truncate "str-truncate long text here" 15 "..."))
+(println (str-rpad "str-rpad" 16 "."))
+(println (str "str-count 'l' = " (str-count "hello world" "l")))
+(let [$ls (str-lines "line1\nline2\nline3")]
+  (println (str "str-lines = " (length $ls) " lines")))
+(println (str "math-clamp(150,0,100) = " (math-clamp 150 0 100)))
+(println (str "math-lerp(0,100,0.5)  = " (math-lerp 0 100 0.5)))
+(println (str "math-round-n(3.14159,2) = " (math-round-n 3.14159 2)))
+(println (str "math-sign(-7) = " (math-sign -7)))
+(let [$t (time-now-ms)]
+  (println (str "time-elapsed = " (time-elapsed $t) "ms")))
+(println (str "path-basename = " (path-basename "/a/b/c.fl")))
+(println (str "path-dirname  = " (path-dirname "/a/b/c.fl")))
+
+(println "=== R4: apply (higher-order, user lambda) ===")
+(define $sum5 (fn [$a $b $c $d $e] (+ $a $b $c $d $e)))
+(println (str "apply sum5(1..5) = " (apply $sum5 (list 1 2 3 4 5))))
+
+(println "=== PASS ===")
