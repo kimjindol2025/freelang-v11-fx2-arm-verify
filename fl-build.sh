@@ -1,6 +1,6 @@
 #!/bin/bash
 # fl-build — FreeLang 네이티브 빌드 스크립트
-# 사용법: fl-build.sh <input.fl> [output-binary]
+# 사용법: fl-build.sh <input.fl> [output-binary] [--no-net] [--plan]
 # 결과:   Node.js 없는 단일 ELF 바이너리
 
 set -e
@@ -11,22 +11,33 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
 CGC_BIN="${CGC_BIN:-/root/freelang-v11/bin/cgc-bin}"
 
-# --no-net 플래그: openssl/curl 없이 stub으로 빌드
+# 플래그 파싱
 NO_NET=0
+PLAN_MODE=0
 ARGS=()
 for arg in "$@"; do
-  if [ "$arg" = "--no-net" ]; then NO_NET=1; else ARGS+=("$arg"); fi
+  if [ "$arg" = "--no-net" ]; then NO_NET=1;
+  elif [ "$arg" = "--plan" ]; then PLAN_MODE=1;
+  else ARGS+=("$arg"); fi
 done
 
 FL_INPUT="${ARGS[0]}"
 if [ -z "$FL_INPUT" ]; then
-  echo "사용법: $0 <input.fl> [output-name] [--no-net]"
+  echo "사용법: $0 <input.fl> [output-name] [--no-net] [--plan]"
   exit 1
 fi
 
 FL_BASE="$(basename "$FL_INPUT" .fl)"
 OUTPUT="${ARGS[1]:-$FL_BASE}"
 C_FILE="/tmp/fl_build_$$.c"
+
+# ─── --plan: 선언 정보 출력 후 종료 (빌드 없이) ──────────────────
+if [ "$PLAN_MODE" = "1" ]; then
+  echo "📋 fl build --plan"
+  echo ""
+  python3 "$SCRIPT_DIR/fl-build-plan.py" "$FL_INPUT" "$SCRIPT_DIR" "$OUTPUT"
+  exit 0
+fi
 
 echo "🔨 FreeLang 네이티브 빌드"
 echo "   입력: $FL_INPUT"
@@ -87,12 +98,10 @@ def inline_loads(path, visited=None):
     except:
         print(f"; [fl-build] 경고: {path} 읽기 실패", file=sys.stderr)
         return ""
-    # module form 제거 (루트 파일만) — cgc-bin은 module form 미지원
     if is_root:
         content = strip_module_form(content)
     result = []
     for line in content.splitlines():
-        # (load "...") 또는 (load '...')
         m = re.match(r'\s*\(load\s+"([^"]+)"\)', line) or \
             re.match(r"\s*\(load\s+'([^']+)'\)", line)
         if m:
@@ -109,7 +118,6 @@ def inline_loads(path, visited=None):
 
 output = inline_loads("$FL_INPUT")
 
-# (println "[DEBUG] ...") 제거 (노이즈 줄이기)
 lines = output.splitlines()
 cleaned = [l for l in lines if not re.match(r'\s*\(println\s+"?\[DEBUG\]', l)]
 output = "\n".join(cleaned)
@@ -134,7 +142,6 @@ echo "⚙️  FL → C 컴파일..."
 COMPILE_OUT=$("$CGC_BIN" "$PREPROCESSED" "$C_FILE" 2>&1)
 echo "$COMPILE_OUT" | grep -v "^$" || true
 
-# W1/W2/W3 경고 있으면 강조 출력
 WARN_COUNT=$(echo "$COMPILE_OUT" | grep -c "\[W[123]\]" || true)
 if [ "$WARN_COUNT" -gt 0 ]; then
   echo ""
@@ -143,7 +150,7 @@ if [ "$WARN_COUNT" -gt 0 ]; then
   echo ""
 fi
 
-# ─── 3. gcc: C → ELF ─────────────────────────────────────────────
+# ─── 4. gcc: C → ELF ─────────────────────────────────────────────
 echo "⚙️  C → 바이너리 컴파일..."
 if [ "$NO_NET" = "1" ]; then
   echo "   + --no-net: HTTP/WS/crypto stub 사용 (openssl/curl 불필요)"
@@ -164,13 +171,11 @@ RUNTIME_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/regex.c $RUNTIME_DIR/smtp.c $RUNTIME_DIR/pdf_ttf.c $RUNTIME_DIR/pdf_img.c \
   $RUNTIME_DIR/builtins-shim.c"
 
-# mariadb.c는 dlopen 방식이라 헤더 불필요 — 항상 포함
 if [ -f "$RUNTIME_DIR/mariadb.c" ]; then
   RUNTIME_SRCS="$RUNTIME_SRCS $RUNTIME_DIR/mariadb.c"
   echo "   + MariaDB dlopen 바인딩 포함"
 fi
 
-# user-fns.c — fl-source-manager 관리 (있으면 자동 포함)
 if [ -f "$RUNTIME_DIR/user-fns.c" ]; then
   RUNTIME_SRCS="$RUNTIME_SRCS $RUNTIME_DIR/user-fns.c"
 fi
@@ -188,7 +193,7 @@ else
   exit 1
 fi
 
-# ─── 4. 정리 ─────────────────────────────────────────────────────
+# ─── 5. 정리 ─────────────────────────────────────────────────────
 rm -f "$C_FILE" "$PREPROCESSED"
 
 echo ""
