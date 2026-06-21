@@ -185,48 +185,149 @@ FLValue ufl_path_basename(FLValue p) {
 /* FL:FN_END */
 /* FL:USER_SECTION:END */
 
-/* FL:SHIM_SECTION:BEGIN
- * cgc-bin은 알 수 없는 외부 함수를 fl_fn_call(name, ...) 형태로 생성한다.
- * 첫 인자가 FLValue여야 하므로 ufl_* 구현을 FLValue 글로벌로 노출한다.
- * fl-source-manager가 user-fns.c를 재생성할 때 이 섹션도 갱신해야 한다.
- */
+/* FL:SHIM_SECTION:BEGIN */
 
-/* ── 글로벌 선언 ───────────────────────────────── */
-FLValue str_indent, str_truncate, str_rpad, str_count, str_lines;
-FLValue math_clamp, math_lerp, math_round_n, math_sign;
-FLValue time_now_ms, time_elapsed;
-FLValue path_basename, path_dirname;
-
-/* ── 래퍼 (arity별 디스패치) ────────────────────── */
-static FLValue w_str_indent   (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_indent(a[0],a[1]);}
-static FLValue w_str_truncate (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_truncate(a[0],a[1],a[2]);}
-static FLValue w_str_rpad     (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_rpad(a[0],a[1],a[2]);}
-static FLValue w_str_count    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_count(a[0],a[1]);}
-static FLValue w_str_lines    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_str_lines(a[0]);}
-static FLValue w_math_clamp   (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_clamp(a[0],a[1],a[2]);}
-static FLValue w_math_lerp    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_lerp(a[0],a[1],a[2]);}
-static FLValue w_math_round_n (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_round_n(a[0],a[1]);}
-static FLValue w_math_sign    (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_math_sign(a[0]);}
-static FLValue w_time_now_ms  (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_time_now_ms();}
-static FLValue w_time_elapsed (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_time_elapsed(a[0]);}
-static FLValue w_path_basename(FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_path_basename(a[0]);}
-static FLValue w_path_dirname (FLClosure* s,int ac,FLValue* a){(void)s;(void)ac;return ufl_path_dirname(a[0]);}
-
-/* ── 초기화 (arena 미초기화 전이므로 malloc 폴백 사용) ── */
-__attribute__((constructor))
-static void user_fns_shim_init(void) {
-    str_indent    = fl_make_native_fn(w_str_indent,    "str_indent");
-    str_truncate  = fl_make_native_fn(w_str_truncate,  "str_truncate");
-    str_rpad      = fl_make_native_fn(w_str_rpad,      "str_rpad");
-    str_count     = fl_make_native_fn(w_str_count,     "str_count");
-    str_lines     = fl_make_native_fn(w_str_lines,     "str_lines");
-    math_clamp    = fl_make_native_fn(w_math_clamp,    "math_clamp");
-    math_lerp     = fl_make_native_fn(w_math_lerp,     "math_lerp");
-    math_round_n  = fl_make_native_fn(w_math_round_n,  "math_round_n");
-    math_sign     = fl_make_native_fn(w_math_sign,     "math_sign");
-    time_now_ms   = fl_make_native_fn(w_time_now_ms,   "time_now_ms");
-    time_elapsed  = fl_make_native_fn(w_time_elapsed,  "time_elapsed");
-    path_basename = fl_make_native_fn(w_path_basename, "path_basename");
-    path_dirname  = fl_make_native_fn(w_path_dirname,  "path_dirname");
+/* FL:SHIM_FN:str-indent */
+FLValue str_indent;
+static FLValue w_str_indent(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_str_indent(_a[0], _a[1]);
 }
+__attribute__((constructor)) static void _shim_init_str_indent(void) {
+    str_indent = fl_make_native_fn(w_str_indent, "str_indent");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:str-truncate */
+FLValue str_truncate;
+static FLValue w_str_truncate(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_str_truncate(_a[0], _a[1], _a[2]);
+}
+__attribute__((constructor)) static void _shim_init_str_truncate(void) {
+    str_truncate = fl_make_native_fn(w_str_truncate, "str_truncate");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:str-rpad */
+FLValue str_rpad;
+static FLValue w_str_rpad(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_str_rpad(_a[0], _a[1], _a[2]);
+}
+__attribute__((constructor)) static void _shim_init_str_rpad(void) {
+    str_rpad = fl_make_native_fn(w_str_rpad, "str_rpad");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:str-count */
+FLValue str_count;
+static FLValue w_str_count(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_str_count(_a[0], _a[1]);
+}
+__attribute__((constructor)) static void _shim_init_str_count(void) {
+    str_count = fl_make_native_fn(w_str_count, "str_count");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:str-lines */
+FLValue str_lines;
+static FLValue w_str_lines(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_str_lines(_a[0]);
+}
+__attribute__((constructor)) static void _shim_init_str_lines(void) {
+    str_lines = fl_make_native_fn(w_str_lines, "str_lines");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:math-clamp */
+FLValue math_clamp;
+static FLValue w_math_clamp(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_math_clamp(_a[0], _a[1], _a[2]);
+}
+__attribute__((constructor)) static void _shim_init_math_clamp(void) {
+    math_clamp = fl_make_native_fn(w_math_clamp, "math_clamp");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:math-lerp */
+FLValue math_lerp;
+static FLValue w_math_lerp(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_math_lerp(_a[0], _a[1], _a[2]);
+}
+__attribute__((constructor)) static void _shim_init_math_lerp(void) {
+    math_lerp = fl_make_native_fn(w_math_lerp, "math_lerp");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:math-round-n */
+FLValue math_round_n;
+static FLValue w_math_round_n(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_math_round_n(_a[0], _a[1]);
+}
+__attribute__((constructor)) static void _shim_init_math_round_n(void) {
+    math_round_n = fl_make_native_fn(w_math_round_n, "math_round_n");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:math-sign */
+FLValue math_sign;
+static FLValue w_math_sign(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_math_sign(_a[0]);
+}
+__attribute__((constructor)) static void _shim_init_math_sign(void) {
+    math_sign = fl_make_native_fn(w_math_sign, "math_sign");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:time-now-ms */
+FLValue time_now_ms;
+static FLValue w_time_now_ms(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac; (void)_a;
+    return ufl_time_now_ms();
+}
+__attribute__((constructor)) static void _shim_init_time_now_ms(void) {
+    time_now_ms = fl_make_native_fn(w_time_now_ms, "time_now_ms");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:time-elapsed */
+FLValue time_elapsed;
+static FLValue w_time_elapsed(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_time_elapsed(_a[0]);
+}
+__attribute__((constructor)) static void _shim_init_time_elapsed(void) {
+    time_elapsed = fl_make_native_fn(w_time_elapsed, "time_elapsed");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:path-basename */
+FLValue path_basename;
+static FLValue w_path_basename(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_path_basename(_a[0]);
+}
+__attribute__((constructor)) static void _shim_init_path_basename(void) {
+    path_basename = fl_make_native_fn(w_path_basename, "path_basename");
+}
+/* FL:SHIM_FN_END */
+
+/* FL:SHIM_FN:path-dirname */
+FLValue path_dirname;
+static FLValue w_path_dirname(FLClosure* _s, int _ac, FLValue* _a) {
+    (void)_s; (void)_ac;
+    return ufl_path_dirname(_a[0]);
+}
+__attribute__((constructor)) static void _shim_init_path_dirname(void) {
+    path_dirname = fl_make_native_fn(w_path_dirname, "path_dirname");
+}
+/* FL:SHIM_FN_END */
+
 /* FL:SHIM_SECTION:END */
