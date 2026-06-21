@@ -1,0 +1,12 @@
+{
+  "name": "string",
+  "version": "1",
+  "description": "문자열 조작 유틸리티",
+  "packages": [
+    "str-indent",
+    "str-truncate",
+    "str-rpad",
+    "str-count",
+    "str-lines"
+  ]
+}

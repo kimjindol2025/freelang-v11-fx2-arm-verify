@@ -1,0 +1,11 @@
+{
+  "name": "math",
+  "version": "1",
+  "description": "수학 연산 유틸리티",
+  "packages": [
+    "math-clamp",
+    "math-lerp",
+    "math-round-n",
+    "math-sign"
+  ]
+}

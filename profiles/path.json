@@ -1,0 +1,9 @@
+{
+  "name": "path",
+  "version": "1",
+  "description": "파일 경로 유틸리티",
+  "packages": [
+    "path-basename",
+    "path-dirname"
+  ]
+}

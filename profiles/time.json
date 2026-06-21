@@ -1,0 +1,9 @@
+{
+  "name": "time",
+  "version": "1",
+  "description": "시간 측정 유틸리티",
+  "packages": [
+    "time-now-ms",
+    "time-elapsed"
+  ]
+}
