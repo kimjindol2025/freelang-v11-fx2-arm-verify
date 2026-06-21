@@ -421,8 +421,33 @@ if [ -f "$RUNTIME_DIR/user-fns.c" ]; then
   USER_SRCS="$RUNTIME_DIR/user-fns.c"
 fi
 
+# ── app.o 캐시 (FL 소스 변경 시에만 재컴파일) ─────────────────────
+APP_OBJ_DIR="/tmp/fl_app_cache"
+mkdir -p "$APP_OBJ_DIR"
+OUTPUT_BASE="$(basename "$OUTPUT")"
+APP_O="$APP_OBJ_DIR/${OUTPUT_BASE}.o"
+APP_HASH_FILE="$APP_OBJ_DIR/${OUTPUT_BASE}.hash"
+APP_HASH=$(md5sum "$PREPROCESSED" 2>/dev/null | cut -d' ' -f1)
+
+if [ ! -f "$APP_O" ] || [ "$(cat "$APP_HASH_FILE" 2>/dev/null)" != "${APP_HASH}_${NO_NET}" ]; then
+  echo "   🔧 app.o 컴파일 중..."
+  if gcc -O2 -c -Werror=implicit-function-declaration "$C_FILE" \
+    -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$APP_O" 2>/tmp/fl_app_gcc_$$.log; then
+    echo "${APP_HASH}_${NO_NET}" > "$APP_HASH_FILE"
+    echo "   ✅ app.o 완성 (이후 빌드는 재사용)"
+  else
+    # 컴파일 실패 → 캐시된 .o 삭제 후 에러 출력 (Stage 4 파서로 위임)
+    rm -f "$APP_O" "$APP_HASH_FILE"
+    cat /tmp/fl_app_gcc_$$.log >> /tmp/fl_gcc_placeholder_$$.log 2>/dev/null || true
+    mv /tmp/fl_app_gcc_$$.log /tmp/fl_gcc_placeholder_$$.log
+  fi
+  rm -f /tmp/fl_app_gcc_$$.log 2>/dev/null || true
+else
+  echo "   ✅ app.o 캐시 사용"
+fi
+
 GCC_LOG="/tmp/fl_gcc_$$.log"
-if gcc -O2 -Werror=implicit-function-declaration -o "$OUTPUT" $C_FILE $USER_SRCS "$LIBFX_A" \
+if gcc -o "$OUTPUT" "$APP_O" $USER_SRCS "$LIBFX_A" \
   -I "$RUNTIME_DIR" $EXTRA_CFLAGS \
   -rdynamic -lpthread -lm -ldl -lsqlite3 $NET_LIBS \
   -w 2>"$GCC_LOG"; then
