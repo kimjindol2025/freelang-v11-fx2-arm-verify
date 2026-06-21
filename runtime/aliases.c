@@ -1840,3 +1840,30 @@ FLValue fl_db_query(FLValue db, FLValue sql, FLValue params)  { return fxb_sqlit
 FLValue fl_db_exec(FLValue db, FLValue sql, FLValue params)   { return fxb_sqlite_exec_p(db, sql, params); }
 
 /* user package functions: implemented in user-fns.c, exposed as FLValue globals via builtins shim */
+
+/* ── 매번 고쳐쓰던 것들 자동화 ───────────────────────────────────── */
+
+
+/* req-param: (get (get $req "query") key) 패턴 */
+FLValue req_param(FLValue req, FLValue key) {
+    FLValue query = fl_map_get(req, fl_str_val("query"));
+    return fl_map_get(query, key);
+}
+
+/* req-header: (get (get $req "headers") key) 패턴 */
+FLValue req_header(FLValue req, FLValue key) {
+    FLValue headers = fl_map_get(req, fl_str_val("headers"));
+    return fl_map_get(headers, key);
+}
+
+/* req-body: request body 접근 */
+FLValue req_body(FLValue req) {
+    return fl_map_get(req, fl_str_val("body"));
+}
+
+/* ok?: nil/false 판별 */
+FLValue ok_p(FLValue v) {
+    if (v.tag == FL_NIL)  return fl_bool(0);
+    if (v.tag == FL_BOOL) return fl_bool(v.b);
+    return fl_bool(1);
+}

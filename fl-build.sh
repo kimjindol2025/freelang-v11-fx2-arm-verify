@@ -126,6 +126,9 @@ open("$PREPROCESSED", "w").write(output)
 print(f"[fl-build] 전처리 완료", file=sys.stderr)
 PYEOF
 
+# 긴 문자열 자동 분할 (>900B)
+python3 "$SCRIPT_DIR/fl-str-split.py" "$PREPROCESSED" 2>&1 || true
+
 # ─── 2. 사전 검사 ────────────────────────────────────────────────
 CHECK_PARENS="/home/kimjin/freelang-v11/scripts/check-parens.py"
 if [ -f "$CHECK_PARENS" ]; then
