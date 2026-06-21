@@ -164,6 +164,48 @@ if [ "$WARN_COUNT" -gt 0 ]; then
   echo ""
 fi
 
+# ─── 3.5. gcc -fsyntax-only: C 타입 사전 검사 (0.3초, 바이너리 없음) ───
+SYNTAX_LOG="/tmp/fl_syntax_$$.log"
+echo "🔍 C 타입 사전 검사..."
+if gcc -fsyntax-only -I "$RUNTIME_DIR" "$C_FILE" -w 2>"$SYNTAX_LOG"; then
+  rm -f "$SYNTAX_LOG"
+  echo "   ✅ 타입 OK"
+else
+  echo "❌ C 타입 오류 (풀 빌드 전 조기 감지):"
+  # #line N "<fl>" 디렉티브 → FL 원본 라인 역추적
+  python3 - "$SYNTAX_LOG" "$PREPROCESSED" << 'PYEOF'
+import sys, re
+
+syntax_log  = open(sys.argv[1]).read()
+fl_lines    = open(sys.argv[2]).read().splitlines()
+
+# GCC 에러: <fl>:N:col: error: msg
+errors = re.findall(r'<fl>:(\d+):\d+: error: (.+)', syntax_log)
+
+seen = set()
+for lineno_s, msg in errors:
+    lineno = int(lineno_s) - 1
+    fl_line = fl_lines[lineno].strip() if lineno < len(fl_lines) else ''
+
+    # C 함수명 → FL 이름 힌트 (GCC는 유니코드 곱슬따옴표 사용)
+    fn_match = re.search(r"called object .([^'‘’]+).", msg)
+    fl_hint  = fn_match.group(1).replace('_', '-') if fn_match else ''
+
+    key = (lineno, msg[:60])
+    if key in seen: continue
+    seen.add(key)
+
+    print(f"  📍 FL 줄 {lineno+1}: {msg}")
+    if fl_line:
+        print(f"     {fl_line[:120]}")
+    if fl_hint and fl_hint != fl_line:
+        print(f"     💡 fxb-{fl_hint} 로 교체하세요")
+    print()
+PYEOF
+  rm -f "$SYNTAX_LOG" "$C_FILE" "$PREPROCESSED"
+  exit 1
+fi
+
 # ─── 4. gcc: C → ELF ─────────────────────────────────────────────
 echo "⚙️  C → 바이너리 컴파일..."
 if [ "$NO_NET" = "1" ]; then
