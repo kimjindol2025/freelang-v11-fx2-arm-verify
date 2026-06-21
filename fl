@@ -94,18 +94,20 @@ graph)
   ;;
 
 # ─────────────────────────────
-# fl new <name> [--profile p1,p2,...]
+# fl new <name> [--profile p1,p2,...] [--pkg p1,p2,...]
 # ─────────────────────────────
 new)
   NAME=$1; shift
   if [[ -z "$NAME" ]]; then
-    echo "사용법: fl new <name> [--profile p1,p2,...]" >&2; exit 1
+    echo "사용법: fl new <name> [--profile p1,p2,...] [--pkg p1,p2,...]" >&2; exit 1
   fi
 
   PROFILES=()
+  PKGS=()
   while [[ $# -gt 0 ]]; do
     case $1 in
       --profile|-p) shift; IFS=',' read -ra PROFILES <<< "$1" ;;
+      --pkg)        shift; IFS=',' read -ra PKGS    <<< "$1" ;;
     esac
     shift
   done
@@ -117,60 +119,76 @@ new)
   mkdir -p "$NAME"
   _ok "디렉토리 생성: $NAME/"
 
-  # fl-project.json
-  if [[ ${#PROFILES[@]} -gt 0 ]]; then
-    PROF_JSON=$(printf '"%s", ' "${PROFILES[@]}"); PROF_JSON="[${PROF_JSON%, }]"
-  else
-    PROF_JSON='[]'
-  fi
-
-  cat > "$NAME/fl-project.json" << MANIFEST
-{
-  "name": "$NAME",
-  "profiles": $PROF_JSON
-}
-MANIFEST
-  _ok "fl-project.json 생성"
-
-  # hello.fl
-  cat > "$NAME/hello.fl" << FL
-(println "Hello from $NAME!")
-FL
-  _ok "hello.fl 생성"
-
-  # 런타임 초기화
-  if [[ ${#PROFILES[@]} -gt 0 ]]; then
+  # ── fx.toml 생성 ──────────────────────────────────────────────
+  {
+    echo "[project]"
+    echo "name   = \"$NAME\""
+    echo "entry  = \"app.fl\""
+    echo "output = \"$NAME\""
     echo ""
-    echo "→ 런타임 초기화 중..."
-    FL_PROJECT=$(cat "$NAME/fl-project.json")
+    echo "[runtime]"
+    if [[ ${#PROFILES[@]} -gt 0 ]]; then
+      echo "profiles = [$(printf '"%s", ' "${PROFILES[@]}" | sed 's/, $//')]"
+    fi
+    if [[ ${#PKGS[@]} -gt 0 ]]; then
+      echo "packages = [$(printf '"%s", ' "${PKGS[@]}" | sed 's/, $//')]"
+    fi
+  } > "$NAME/fx.toml"
+  _ok "fx.toml 생성"
+
+  # ── app.fl 생성 ────────────────────────────────────────────────
+  cat > "$NAME/app.fl" << 'FL'
+(println "Hello, fx2!")
+FL
+  _ok "app.fl 생성"
+
+  # ── .gitignore ─────────────────────────────────────────────────
+  cat > "$NAME/.gitignore" << 'GI'
+# 빌드 결과물
+*.bin
+/out/
+GI
+  # 바이너리 이름도 추가
+  echo "/$NAME" >> "$NAME/.gitignore"
+  _ok ".gitignore 생성"
+
+  # ── 런타임 초기화 (프로파일/패키지 있을 때) ─────────────────────
+  if [[ ${#PROFILES[@]} -gt 0 ]] || [[ ${#PKGS[@]} -gt 0 ]]; then
+    echo ""
+    echo "📦 런타임 초기화..."
+    PAYLOAD=$(python3 -c "
+import json, sys
+profs = '${PROFILES[*]}'.split() if '${PROFILES[*]}' else []
+pkgs  = '${PKGS[*]}'.split() if '${PKGS[*]}' else []
+d = {}
+if profs: d['profiles'] = profs
+if pkgs:  d['packages'] = pkgs
+print(json.dumps(d))
+" 2>/dev/null)
     RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
-      -H "Content-Type: application/json" \
-      -d "{\"fl_project\": $FL_PROJECT}" 2>/dev/null)
-
-    OK=$(python3 -c "import json,sys; d=json.loads('$RESULT'.replace(\"'\",\"'\")); print(d.get('ok',False))" 2>/dev/null || \
-         echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok',False))" 2>/dev/null)
-
-    if [[ "$OK" == "True" ]]; then
-      _ok "런타임 초기화 완료"
+      -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null)
+    INIT_OK=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+    if [[ "$INIT_OK" == "True" ]]; then
       echo "$RESULT" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-for p in d.get('packages',[]):
-    icon = '↩' if p['action']=='skipped' else '+'
-    print(f'  {icon} {p[\"name\"]} ({p[\"action\"]})')
-rp = d.get('resolved_profiles',[])
-if rp: print(f'  profiles resolved: {\" → \".join(rp)}')
+added=[p['name'] for p in d.get('packages',[]) if p.get('action')!='skipped']
+skip=[p['name'] for p in d.get('packages',[]) if p.get('action')=='skipped']
+if added: print('  + '+', '.join(added))
+if skip:  print('  ↩ skipped: '+', '.join(skip))
 " 2>/dev/null
+      _ok "런타임 준비 완료"
     else
-      _fail "런타임 초기화 실패"
-      echo "$RESULT" | python3 -m json.tool 2>/dev/null || echo "$RESULT"
+      ERR=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
+      _fail "런타임 초기화 실패: $ERR"
     fi
   fi
 
   echo ""
-  echo "프로젝트 준비 완료:"
-  echo "  $NAME/fl-project.json"
-  echo "  $NAME/hello.fl"
+  echo "✓ 프로젝트 준비 완료:"
+  echo "  cd $NAME"
+  echo "  fl build    # 빌드"
+  echo "  fl run      # 실행"
   ;;
 
 # ─────────────────────────────
