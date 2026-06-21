@@ -1,0 +1,29 @@
+;; lib/index.fl — fx2 표준 라이브러리 전체 로드
+;; (load "/home/kimjin/freelang-v11-fx2/lib/index.fl")
+;;
+;; 선택 로드:
+;; (load "/home/kimjin/freelang-v11-fx2/lib/http.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/db.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/validate.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/auth.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/paginate.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/log.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/cache.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/env.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/fmt.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/list.fl")
+;; (load "/home/kimjin/freelang-v11-fx2/lib/result.fl")
+
+(define _FX_LIB "/home/kimjin/freelang-v11-fx2/lib")
+
+(load (str _FX_LIB "/result.fl"))
+(load (str _FX_LIB "/env.fl"))
+(load (str _FX_LIB "/log.fl"))
+(load (str _FX_LIB "/cache.fl"))
+(load (str _FX_LIB "/http.fl"))
+(load (str _FX_LIB "/validate.fl"))
+(load (str _FX_LIB "/auth.fl"))
+(load (str _FX_LIB "/db.fl"))
+(load (str _FX_LIB "/paginate.fl"))
+(load (str _FX_LIB "/list.fl"))
+(load (str _FX_LIB "/fmt.fl"))

@@ -1,0 +1,36 @@
+;; lib/log.fl — 구조화된 로깅
+;; (load "/home/kimjin/freelang-v11-fx2/lib/log.fl")
+
+(define _LOG_LEVEL (atom "info"))
+
+(defn log-set-level [$level]
+  (reset! _LOG_LEVEL $level))
+
+(defn _log-emit [$level $tag $msg $data]
+  (let [$ts (date-now-str)
+        $line (str "[" $ts "] [" $level "] [" $tag "] " $msg
+                   (if (nil? $data) "" (str " " (json-stringify $data))))]
+    (println $line)))
+
+(defn log-info [$tag $msg]
+  (_log-emit "INFO" $tag $msg nil))
+
+(defn log-info-data [$tag $msg $data]
+  (_log-emit "INFO" $tag $msg $data))
+
+(defn log-warn [$tag $msg]
+  (_log-emit "WARN" $tag $msg nil))
+
+(defn log-error [$tag $msg]
+  (_log-emit "ERROR" $tag $msg nil))
+
+(defn log-error-data [$tag $msg $data]
+  (_log-emit "ERROR" $tag $msg $data))
+
+;; 실행 시간 측정
+(defn log-timing [$tag $label $fn]
+  (let [$start (now-ms)
+        $result ($fn)
+        $elapsed (- (now-ms) $start)]
+    (_log-emit "TIMING" $tag (str $label ": " $elapsed "ms") nil)
+    $result))

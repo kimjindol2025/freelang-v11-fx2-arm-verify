@@ -1,0 +1,36 @@
+;; lib/db.fl — SQLite 공통 패턴
+;; (load "/home/kimjin/freelang-v11-fx2/lib/db.fl")
+
+;; ── 단일 행 또는 404 ─────────────────────────────────────────
+(defn db-one-or-nil [$db $sql $params]
+  (let [$rows (fxb-sqlite-query-p $db $sql $params)]
+    (if (> (length $rows) 0) (first $rows) nil)))
+
+;; 결과 없으면 서버 404 응답 반환 (라우트에서 사용)
+(defn db-require-one [$db $sql $params $msg]
+  (let [$row (db-one-or-nil $db $sql $params)]
+    (if (nil? $row)
+      (server-status 404 (json-stringify {"ok" false "error" $msg}))
+      $row)))
+
+(defn db-exists? [$db $sql $params]
+  (let [$rows (fxb-sqlite-query-p $db $sql $params)]
+    (> (length $rows) 0)))
+
+;; ── 페이지네이션 ─────────────────────────────────────────────
+(defn db-paginate [$db $sql $params $page $size]
+  (let [$offset (* (- $page 1) $size)
+        $paged  (str $sql " LIMIT ? OFFSET ?")
+        $args   (concat $params [$size $offset])]
+    (fxb-sqlite-query-p $db $paged $args)))
+
+;; ── 카운트 ───────────────────────────────────────────────────
+(defn db-count [$db $table $where $params]
+  (let [$sql  (str "SELECT COUNT(*) as n FROM " $table
+                   (if (nil? $where) "" (str " WHERE " $where)))
+        $rows (fxb-sqlite-query-p $db $sql $params)]
+    (if (> (length $rows) 0) (get (first $rows) "n") 0)))
+
+;; ── 공통 테이블 생성 패턴 ────────────────────────────────────
+(defn db-ensure-table [$db $sql]
+  (fxb-sqlite-exec $db $sql))

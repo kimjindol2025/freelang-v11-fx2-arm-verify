@@ -1,0 +1,43 @@
+;; lib/fmt.fl — 출력 포맷 헬퍼
+;; (load "/home/kimjin/freelang-v11-fx2/lib/fmt.fl")
+
+;; 바이트 → 사람 읽기 좋은 크기
+(defn fmt-size [$bytes]
+  (let [$kb 1024
+        $mb (* 1024 1024)
+        $gb (* 1024 1024 1024)]
+    (if (< $bytes $kb) (str $bytes "B")
+      (if (< $bytes $mb) (str (math-round-n (/ $bytes $kb) 1) "KB")
+        (if (< $bytes $gb) (str (math-round-n (/ $bytes $mb) 1) "MB")
+          (str (math-round-n (/ $bytes $gb) 1) "GB"))))))
+
+;; ms → 사람 읽기 좋은 시간
+(defn fmt-duration [$ms]
+  (let [$sec 1000
+        $min 60000
+        $hr  3600000]
+    (if (< $ms $sec) (str $ms "ms")
+      (if (< $ms $min) (str (math-round-n (/ $ms $sec) 1) "s")
+        (if (< $ms $hr) (str (floor (/ $ms $min)) "m " (floor (/ (% $ms $min) $sec)) "s")
+          (str (floor (/ $ms $hr)) "h " (floor (/ (% $ms $hr) $min)) "m"))))))
+
+;; 숫자 천단위 콤마
+(defn fmt-number [$n]
+  (let [$s (str (floor $n))
+        $len (length $s)]
+    (if (<= $len 3) $s
+      (str (str-slice $s 0 (% $len 3))
+           (if (= (% $len 3) 0) "" ",")
+           (str-join "," (map (fn [$i]
+                                (str-slice $s (+ (* $i 3) (% $len 3))
+                                           (+ (* $i 3) (% $len 3) 3)))
+                              (range 0 (floor (/ $len 3)))))))))
+
+;; 퍼센트
+(defn fmt-pct [$n $total]
+  (if (= $total 0) "0%"
+    (str (math-round-n (* (/ $n $total) 100) 1) "%")))
+
+;; 구분선
+(defn fmt-divider [$n]
+  (str-repeat "-" $n))

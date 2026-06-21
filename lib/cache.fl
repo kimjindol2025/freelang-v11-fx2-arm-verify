@@ -1,0 +1,38 @@
+;; lib/cache.fl — TTL 인메모리 캐시 (atom 기반)
+;; (load "/home/kimjin/freelang-v11-fx2/lib/cache.fl")
+
+(define _CACHE (atom {}))
+
+;; TTL 초 단위. 0이면 영구
+(defn cache-set [$key $value $ttl-sec]
+  (let [$expires (if (= $ttl-sec 0) 0
+                   (+ (now-ms) (* $ttl-sec 1000)))]
+    (swap! _CACHE (fn [$c]
+      (assoc $c $key {"v" $value "exp" $expires})))))
+
+(defn cache-get [$key]
+  (let [$entry (get (deref _CACHE) $key)]
+    (if (nil? $entry) nil
+      (let [$exp (get $entry "exp")
+            $now (now-ms)]
+        (if (and (> $exp 0) (> $now $exp))
+          (do (swap! _CACHE (fn [$c] (dissoc $c $key))) nil)
+          (get $entry "v"))))))
+
+(defn cache-delete [$key]
+  (swap! _CACHE (fn [$c] (dissoc $c $key))))
+
+(defn cache-clear []
+  (reset! _CACHE {}))
+
+(defn cache-size []
+  (length (keys (deref _CACHE))))
+
+;; 있으면 반환, 없으면 fn 실행 후 저장
+(defn cache-get-or-set [$key $ttl-sec $fn]
+  (let [$cached (cache-get $key)]
+    (if (nil? $cached)
+      (let [$val ($fn)]
+        (cache-set $key $val $ttl-sec)
+        $val)
+      $cached)))

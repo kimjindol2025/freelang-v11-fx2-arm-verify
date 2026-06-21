@@ -1,0 +1,61 @@
+;; lib/list.fl — 리스트 유틸
+;; (load "/home/kimjin/freelang-v11-fx2/lib/list.fl")
+
+;; n개씩 묶기 [[1,2],[3,4],[5]]
+(defn list-chunk [$lst $n]
+  (if (= (length $lst) 0) []
+    (let [$head (take $n $lst)
+          $tail (drop $n $lst)]
+      (if (= (length $tail) 0)
+        [$head]
+        (concat [$head] (list-chunk $tail $n))))))
+
+;; nil 제거
+(defn list-compact [$lst]
+  (filter (fn [$x] (not (nil? $x))) $lst))
+
+;; 첫 번째 일치 항목 인덱스
+(defn list-find-index [$lst $pred]
+  (let [$loop (fn [$i]
+                (if (>= $i (length $lst)) -1
+                  (if ($pred (nth $lst $i)) $i
+                    ($loop (+ $i 1)))))]
+    ($loop 0)))
+
+;; 두 리스트 교집합
+(defn list-intersect [$a $b]
+  (filter (fn [$x] (some (fn [$y] (= $x $y)) $b)) $a))
+
+;; 두 리스트 차집합 (a에서 b 제거)
+(defn list-diff [$a $b]
+  (filter (fn [$x] (not (some (fn [$y] (= $x $y)) $b))) $a))
+
+;; 중복 제거 (순서 유지)
+(defn list-unique [$lst]
+  (let [$seen (atom [])
+        $check (fn [$x]
+                 (if (some (fn [$s] (= $s $x)) (deref $seen)) false
+                   (do (swap! $seen (fn [$s] (concat $s [$x]))) true)))]
+    (filter $check $lst)))
+
+;; key fn으로 그룹핑 — {"key": [items...]}
+(defn list-group-by [$lst $key-fn]
+  (reduce (fn [$m $item]
+            (let [$k ($key-fn $item)
+                  $existing (or (get $m $k) [])]
+              (assoc $m $k (concat $existing [$item]))))
+          {} $lst))
+
+;; 최솟값 항목
+(defn list-min-by [$lst $fn]
+  (reduce (fn [$best $item]
+            (if (nil? $best) $item
+              (if (< ($fn $item) ($fn $best)) $item $best)))
+          nil $lst))
+
+;; 최댓값 항목
+(defn list-max-by [$lst $fn]
+  (reduce (fn [$best $item]
+            (if (nil? $best) $item
+              (if (> ($fn $item) ($fn $best)) $item $best)))
+          nil $lst))

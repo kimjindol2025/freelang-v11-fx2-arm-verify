@@ -1,0 +1,43 @@
+;; lib/validate.fl — 입력값 검증
+;; (load "/home/kimjin/freelang-v11-fx2/lib/validate.fl")
+
+;; 필수 필드 검사 — 빠진 필드명 반환 (없으면 nil)
+(defn validate-required [$m $keys]
+  (let [$missing (filter (fn [$k] (nil? (get $m $k))) $keys)]
+    (if (= (length $missing) 0) nil
+      (str "필수 필드 없음: " (str-join ", " $missing)))))
+
+;; 이메일 형식 (간단)
+(defn validate-email? [$s]
+  (and (str-includes $s "@")
+       (str-includes $s ".")
+       (> (length $s) 5)))
+
+;; 길이 범위
+(defn validate-length [$s $min $max]
+  (let [$n (length $s)]
+    (if (< $n $min)
+      (str "최소 " $min "자 이상")
+      (if (> $n $max)
+        (str "최대 " $max "자 이하")
+        nil))))
+
+;; 숫자 범위
+(defn validate-range [$n $min $max]
+  (if (< $n $min)
+    (str $min " 이상이어야 함")
+    (if (> $n $max)
+      (str $max " 이하이어야 함")
+      nil)))
+
+;; 허용 값 목록
+(defn validate-enum [$v $allowed]
+  (if (some (fn [$a] (= $a $v)) $allowed)
+    nil
+    (str "허용값: " (str-join ", " $allowed))))
+
+;; body에서 검증 후 에러 응답 — 에러면 서버 400 반환
+(defn validate-body [$body $required-keys]
+  (let [$err (validate-required $body $required-keys)]
+    (if (nil? $err) nil
+      (server-status 400 (json-stringify {"ok" false "error" $err})))))

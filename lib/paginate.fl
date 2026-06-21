@@ -1,0 +1,26 @@
+;; lib/paginate.fl — 페이지네이션 헬퍼
+;; (load "/home/kimjin/freelang-v11-fx2/lib/paginate.fl")
+
+;; 쿼리에서 page/size 파라미터 추출
+(defn paginate-params [$req]
+  (let [$page (str-to-num (or (get (get $req "query") "page") "1"))
+        $size (str-to-num (or (get (get $req "query") "size") "20"))
+        $page (if (< $page 1) 1 $page)
+        $size (if (< $size 1) 20 (if (> $size 100) 100 $size))]
+    {"page" $page "size" $size "offset" (* (- $page 1) $size)}))
+
+;; 페이지네이션 응답 구조
+(defn paginate-result [$rows $total $page $size]
+  (let [$total-pages (if (= $size 0) 1 (+ (floor (/ $total $size))
+                                           (if (= (% $total $size) 0) 0 1)))]
+    {"items"        $rows
+     "total"        $total
+     "page"         $page
+     "size"         $size
+     "total_pages"  $total-pages
+     "has_next"     (< $page $total-pages)
+     "has_prev"     (> $page 1)}))
+
+;; SQL에 LIMIT/OFFSET 추가
+(defn paginate-sql [$sql $size $offset]
+  (str $sql " LIMIT " $size " OFFSET " $offset))

@@ -1,0 +1,40 @@
+;; lib/result.fl — Result 타입 (Ok/Err 패턴)
+;; (load "/home/kimjin/freelang-v11-fx2/lib/result.fl")
+
+;; 생성
+(defn ok [$value]  {"ok" true  "value" $value})
+(defn err [$reason] {"ok" false "error" $reason})
+
+;; 확인
+(defn ok? [$result]  (= (get $result "ok") true))
+(defn err? [$result] (not (ok? $result)))
+
+;; 값 추출
+(defn ok-value [$result] (get $result "value"))
+(defn err-msg  [$result] (get $result "error"))
+
+;; 성공이면 fn 적용, 실패면 그대로 전파
+(defn result-map [$result $fn]
+  (if (ok? $result)
+    (ok ($fn (ok-value $result)))
+    $result))
+
+;; 성공이면 fn 적용 (fn이 Result 반환), 실패면 전파
+(defn result-flat-map [$result $fn]
+  (if (ok? $result)
+    ($fn (ok-value $result))
+    $result))
+
+;; 실패 시 기본값
+(defn result-or [$result $default]
+  (if (ok? $result) (ok-value $result) $default))
+
+;; try-catch를 Result로 래핑
+(defn result-try [$fn]
+  (try (ok ($fn)) (catch $e (err (str $e)))))
+
+;; Result → HTTP 응답 (서버 핸들러에서)
+(defn result-respond [$result]
+  (if (ok? $result)
+    (server-json {"ok" true "data" (ok-value $result)})
+    (server-status 500 (json-stringify {"ok" false "error" (err-msg $result)}))))

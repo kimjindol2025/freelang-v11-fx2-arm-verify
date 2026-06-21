@@ -1,0 +1,47 @@
+;; lib/http.fl — HTTP 응답 + 요청 파싱 헬퍼
+;; (load "/home/kimjin/freelang-v11-fx2/lib/http.fl")
+
+;; ── 응답 ─────────────────────────────────────────────────────
+(defn res-ok [$data]
+  (server-json {"ok" true "data" $data}))
+
+(defn res-err [$code $msg]
+  (server-status $code (json-stringify {"ok" false "error" $msg})))
+
+(defn res-created [$data]
+  (server-status 201 (json-stringify {"ok" true "data" $data})))
+
+(defn res-not-found [$msg]
+  (server-status 404 (json-stringify {"ok" false "error" $msg})))
+
+(defn res-bad-request [$msg]
+  (server-status 400 (json-stringify {"ok" false "error" $msg})))
+
+(defn res-unauthorized []
+  (server-status 401 (json-stringify {"ok" false "error" "인증 필요"})))
+
+(defn res-forbidden []
+  (server-status 403 (json-stringify {"ok" false "error" "권한 없음"})))
+
+;; ── 요청 파싱 ────────────────────────────────────────────────
+(defn req-param [$req $name]
+  (get (get $req "params") $name))
+
+(defn req-query [$req $name]
+  (get (get $req "query") $name))
+
+(defn req-body [$req]
+  (get $req "body"))
+
+(defn req-header [$req $name]
+  (get (get $req "headers") $name))
+
+(defn req-bearer [$req]
+  (let [$auth (req-header $req "Authorization")]
+    (if (nil? $auth) nil
+      (let [$parts (str-split $auth " ")]
+        (if (> (length $parts) 1) (nth $parts 1) nil)))))
+
+(defn req-int [$req $name $default]
+  (let [$v (req-query $req $name)]
+    (if (nil? $v) $default (str-to-num $v))))

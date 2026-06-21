@@ -1,0 +1,33 @@
+;; lib/auth.fl — JWT 인증 헬퍼
+;; (load "/home/kimjin/freelang-v11-fx2/lib/auth.fl")
+;; 의존: lib/http.fl (req-bearer)
+
+;; Bearer 토큰 추출 + JWT 검증
+(defn auth-verify [$req $secret]
+  (let [$token (req-bearer $req)]
+    (if (nil? $token) nil
+      (try (auth-jwt-verify $token $secret) (catch $e nil)))))
+
+;; 인증 미들웨어 — 실패 시 401 반환, 성공 시 payload 반환
+(defn auth-require [$req $secret]
+  (let [$payload (auth-verify $req $secret)]
+    (if (nil? $payload)
+      (server-status 401 (json-stringify {"ok" false "error" "인증 필요"}))
+      $payload)))
+
+;; payload에서 사용자 ID 추출
+(defn auth-user-id [$payload]
+  (get $payload "user_id"))
+
+;; payload에서 역할 추출
+(defn auth-role [$payload]
+  (get $payload "role"))
+
+;; 역할 확인
+(defn auth-require-role [$payload $required-role]
+  (let [$role (auth-role $payload)]
+    (if (= $role $required-role) $payload nil)))
+
+;; 토큰 생성
+(defn auth-make-token [$user-id $role $secret]
+  (auth-jwt-sign {"user_id" $user-id "role" $role} $secret))
