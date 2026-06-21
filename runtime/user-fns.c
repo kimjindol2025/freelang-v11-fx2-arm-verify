@@ -188,146 +188,55 @@ FLValue ufl_path_basename(FLValue p) {
 /* FL:SHIM_SECTION:BEGIN */
 
 /* FL:SHIM_FN:str-indent */
-FLValue str_indent;
-static FLValue w_str_indent(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_str_indent(_a[0], _a[1]);
-}
-__attribute__((constructor)) static void _shim_init_str_indent(void) {
-    str_indent = fl_make_native_fn(w_str_indent, "str_indent");
-}
+FLValue str_indent(FLValue a0, FLValue a1) { return ufl_str_indent(a0, a1); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:str-truncate */
-FLValue str_truncate;
-static FLValue w_str_truncate(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_str_truncate(_a[0], _a[1], _a[2]);
-}
-__attribute__((constructor)) static void _shim_init_str_truncate(void) {
-    str_truncate = fl_make_native_fn(w_str_truncate, "str_truncate");
-}
+FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_truncate(a0, a1, a2); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:str-rpad */
-FLValue str_rpad;
-static FLValue w_str_rpad(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_str_rpad(_a[0], _a[1], _a[2]);
-}
-__attribute__((constructor)) static void _shim_init_str_rpad(void) {
-    str_rpad = fl_make_native_fn(w_str_rpad, "str_rpad");
-}
+FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_rpad(a0, a1, a2); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:str-count */
-FLValue str_count;
-static FLValue w_str_count(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_str_count(_a[0], _a[1]);
-}
-__attribute__((constructor)) static void _shim_init_str_count(void) {
-    str_count = fl_make_native_fn(w_str_count, "str_count");
-}
+FLValue str_count(FLValue a0, FLValue a1) { return ufl_str_count(a0, a1); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:str-lines */
-FLValue str_lines;
-static FLValue w_str_lines(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_str_lines(_a[0]);
-}
-__attribute__((constructor)) static void _shim_init_str_lines(void) {
-    str_lines = fl_make_native_fn(w_str_lines, "str_lines");
-}
+FLValue str_lines(FLValue a0) { return ufl_str_lines(a0); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:math-clamp */
-FLValue math_clamp;
-static FLValue w_math_clamp(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_math_clamp(_a[0], _a[1], _a[2]);
-}
-__attribute__((constructor)) static void _shim_init_math_clamp(void) {
-    math_clamp = fl_make_native_fn(w_math_clamp, "math_clamp");
-}
+FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_clamp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:math-lerp */
-FLValue math_lerp;
-static FLValue w_math_lerp(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_math_lerp(_a[0], _a[1], _a[2]);
-}
-__attribute__((constructor)) static void _shim_init_math_lerp(void) {
-    math_lerp = fl_make_native_fn(w_math_lerp, "math_lerp");
-}
+FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_lerp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:math-round-n */
-FLValue math_round_n;
-static FLValue w_math_round_n(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_math_round_n(_a[0], _a[1]);
-}
-__attribute__((constructor)) static void _shim_init_math_round_n(void) {
-    math_round_n = fl_make_native_fn(w_math_round_n, "math_round_n");
-}
+FLValue math_round_n(FLValue a0, FLValue a1) { return ufl_math_round_n(a0, a1); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:math-sign */
-FLValue math_sign;
-static FLValue w_math_sign(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_math_sign(_a[0]);
-}
-__attribute__((constructor)) static void _shim_init_math_sign(void) {
-    math_sign = fl_make_native_fn(w_math_sign, "math_sign");
-}
+FLValue math_sign(FLValue a0) { return ufl_math_sign(a0); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:time-now-ms */
-FLValue time_now_ms;
-static FLValue w_time_now_ms(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac; (void)_a;
-    return ufl_time_now_ms();
-}
-__attribute__((constructor)) static void _shim_init_time_now_ms(void) {
-    time_now_ms = fl_make_native_fn(w_time_now_ms, "time_now_ms");
-}
+FLValue time_now_ms(void) { return ufl_time_now_ms(); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:time-elapsed */
-FLValue time_elapsed;
-static FLValue w_time_elapsed(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_time_elapsed(_a[0]);
-}
-__attribute__((constructor)) static void _shim_init_time_elapsed(void) {
-    time_elapsed = fl_make_native_fn(w_time_elapsed, "time_elapsed");
-}
+FLValue time_elapsed(FLValue a0) { return ufl_time_elapsed(a0); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:path-basename */
-FLValue path_basename;
-static FLValue w_path_basename(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_path_basename(_a[0]);
-}
-__attribute__((constructor)) static void _shim_init_path_basename(void) {
-    path_basename = fl_make_native_fn(w_path_basename, "path_basename");
-}
+FLValue path_basename(FLValue a0) { return ufl_path_basename(a0); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_FN:path-dirname */
-FLValue path_dirname;
-static FLValue w_path_dirname(FLClosure* _s, int _ac, FLValue* _a) {
-    (void)_s; (void)_ac;
-    return ufl_path_dirname(_a[0]);
-}
-__attribute__((constructor)) static void _shim_init_path_dirname(void) {
-    path_dirname = fl_make_native_fn(w_path_dirname, "path_dirname");
-}
+FLValue path_dirname(FLValue a0) { return ufl_path_dirname(a0); }
 /* FL:SHIM_FN_END */
 
 /* FL:SHIM_SECTION:END */

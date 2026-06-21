@@ -419,7 +419,7 @@ FLValue str_split(FLValue s, FLValue sep);
 FLValue str_pad_left(FLValue s, FLValue width, FLValue ch);
 FLValue str_pad_right(FLValue s, FLValue width, FLValue ch);
 FLValue _impl_str_repeat(FLValue s, FLValue n);
-extern FLValue str_repeat;
+FLValue str_repeat(FLValue s, FLValue n);
 FLValue str_contains(FLValue s, FLValue sub);
 FLValue str_includes(FLValue s, FLValue sub);
 FLValue parse_int(FLValue s);
@@ -602,7 +602,7 @@ FLValue fl_zip_map(FLValue keys, FLValue vals);
 FLValue str_char_at(FLValue s, FLValue idx);
 FLValue str_length(FLValue s);
 FLValue _impl_str_reverse(FLValue s);
-extern FLValue str_reverse;
+FLValue str_reverse(FLValue s);
 FLValue num_to_str(FLValue n);
 FLValue pad_zero(FLValue n, FLValue width);
 /* 수학 유틸 */
@@ -686,17 +686,17 @@ FLValue pdf_img_load(FLValue path);
 FLValue pdf_img_obj(FLValue img, FLValue obj_id);
 
 /* FL:EXTERN_SECTION:BEGIN */
-extern FLValue str_indent;
-extern FLValue str_truncate;
-extern FLValue str_rpad;
-extern FLValue str_count;
-extern FLValue str_lines;
-extern FLValue math_clamp;
-extern FLValue math_lerp;
-extern FLValue math_round_n;
-extern FLValue math_sign;
-extern FLValue time_now_ms;
-extern FLValue time_elapsed;
-extern FLValue path_basename;
-extern FLValue path_dirname;
+FLValue str_indent(FLValue a0, FLValue a1);
+FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_count(FLValue a0, FLValue a1);
+FLValue str_lines(FLValue a0);
+FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
+FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2);
+FLValue math_round_n(FLValue a0, FLValue a1);
+FLValue math_sign(FLValue a0);
+FLValue time_now_ms(void);
+FLValue time_elapsed(FLValue a0);
+FLValue path_basename(FLValue a0);
+FLValue path_dirname(FLValue a0);
 /* FL:EXTERN_SECTION:END */
