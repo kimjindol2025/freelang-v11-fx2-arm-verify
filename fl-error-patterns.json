@@ -5,5 +5,68 @@
     "cause": "FL 표준 함수 이름 변경됨",
     "fix": "number->string 은 (str $n) 또는 (number->string $n) 을 사용하세요",
     "fl_convert": false
+  },
+  {
+    "id": "underscore-file-fn",
+    "gcc": "undefined reference to `file_(read|write|exists)'",
+    "cause": "FL 함수명은 케밥케이스 (언더스코어 금지)",
+    "fix": "file_{0} → (file-{0} ...) 로 바꾸세요\n        FL 함수명 규칙: 언더스코어(_) 금지, 하이픈(-) 사용\n        예: file_read → file-read, file_write → file-write",
+    "fl_convert": false
+  },
+  {
+    "id": "underscore-json-fn",
+    "gcc": "undefined reference to `json_(parse|stringify|try_parse)'",
+    "cause": "FL 함수명은 케밥케이스",
+    "fix": "json_{0} → (json-{0} ...) 로 바꾸세요\n        예: json_parse → json-parse, json_stringify → json-stringify",
+    "fl_convert": false
+  },
+  {
+    "id": "underscore-str-fn",
+    "gcc": "undefined reference to `str_(includes|contains|split|join|trim|replace)'",
+    "cause": "FL 함수명은 케밥케이스",
+    "fix": "str_{0} → (str-{0} ...) 로 바꾸세요\n        예: str_includes → str-includes, str_split → str-split",
+    "fl_convert": false
+  },
+  {
+    "id": "fl-bool-missing",
+    "gcc": "undefined reference to `fl_bool'",
+    "cause": "fl_bool 함수는 존재하지 않음",
+    "fix": "fl_bool 없음 → fl_int(0) / fl_int(1) 사용\n        true  → fl_int(1)\n        false → fl_int(0)",
+    "fl_convert": false
+  },
+  {
+    "id": "sqlite-underscore",
+    "gcc": "undefined reference to `sqlite_(open|query|exec|one)'",
+    "cause": "SQLite 함수는 fxb 프리픽스 필요",
+    "fix": "sqlite_{0} → (fxb-sqlite-{0} ...) 로 바꾸세요\n        예: sqlite_query → (fxb-sqlite-query DB sql)\n            sqlite_exec  → (fxb-sqlite-exec DB sql)",
+    "fl_convert": false
+  },
+  {
+    "id": "range-zero-args",
+    "gcc": "too few arguments to function 'fl_range'",
+    "cause": "(range n) 단인자 버전은 지원 안 됨",
+    "fix": "(range n) → (range 0 n) 으로 바꾸세요\n        예: (range 5) → (range 0 5) → [0,1,2,3,4]",
+    "fl_convert": false
+  },
+  {
+    "id": "str-includes-return",
+    "gcc": "comparison between pointer and integer",
+    "cause": "str-includes는 int(0/1) 반환 — boolean 아님",
+    "fix": "str-includes 반환값은 int\n        → (= (str-includes $s $sub) 1) 로 비교\n        → (if (str-includes $s $sub) ...) 는 동작하지만 주의",
+    "fl_convert": false
+  },
+  {
+    "id": "cgc-let-in-str",
+    "gcc": "invalid use of void expression",
+    "cause": "str 보간 안에서 복잡한 표현식 사용",
+    "fix": "str 안에서 let/복잡한 식은 미리 변수로 꺼내세요\n        ❌ (str \"값: \" (let [$x 1] $x))\n        ✅ (let [$x 1] (str \"값: \" $x))",
+    "fl_convert": false
+  },
+  {
+    "id": "runtime-h-missing",
+    "gcc": "implicit declaration of function 'fxb_(.+)'",
+    "cause": "fxb_* 함수 runtime.h 선언 누락",
+    "fix": "fxb_{0} 함수가 runtime.h에 선언되지 않았습니다\n        → runtime.h 에 추가: FLValue fxb_{0}(FLValue, ...);\n        → 또는 케밥케이스 확인: (fxb-{1}) 사용",
+    "fl_convert": true
   }
 ]

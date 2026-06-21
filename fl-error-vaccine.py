@@ -199,7 +199,7 @@ def main():
             print(f"     ❌ {sym}")
             matched = False
             for p in patterns:
-                fake_msg = f"undefined reference to '{sym}'"
+                fake_msg = f"undefined reference to `{sym}'"
                 if apply_pattern(p, fake_msg, set()):
                     matched = True
                     break
