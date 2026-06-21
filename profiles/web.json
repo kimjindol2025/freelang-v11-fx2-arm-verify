@@ -1,0 +1,7 @@
+{
+  "name": "web",
+  "version": "1",
+  "description": "웹 서버 기본 묶음 (string + path 포함)",
+  "depends": ["string", "path"],
+  "packages": []
+}

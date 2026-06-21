@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# fl — FreeLang 프로젝트 CLI
+# 사용법:
+#   fl new <name> [--profile p1,p2,...]
+#   fl profile list
+#   fl profile add <name>
+#   fl profile add <name>@<version>
+
+FX_HOST="${FX_HOST:-http://localhost:40330}"
+
+_ok()   { echo "✓ $*"; }
+_fail() { echo "✗ $*" >&2; }
+_info() { echo "  $*"; }
+
+cmd=$1; shift
+
+case "$cmd" in
+# ─────────────────────────────
+# fl new <name> [--profile p1,p2,...]
+# ─────────────────────────────
+new)
+  NAME=$1; shift
+  if [[ -z "$NAME" ]]; then
+    echo "사용법: fl new <name> [--profile p1,p2,...]" >&2; exit 1
+  fi
+
+  PROFILES=()
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --profile|-p) shift; IFS=',' read -ra PROFILES <<< "$1" ;;
+    esac
+    shift
+  done
+
+  if [[ -d "$NAME" ]]; then
+    _fail "디렉토리 이미 존재: $NAME"; exit 1
+  fi
+
+  mkdir -p "$NAME"
+  _ok "디렉토리 생성: $NAME/"
+
+  # fl-project.json
+  if [[ ${#PROFILES[@]} -gt 0 ]]; then
+    PROF_JSON=$(printf '"%s", ' "${PROFILES[@]}"); PROF_JSON="[${PROF_JSON%, }]"
+  else
+    PROF_JSON='[]'
+  fi
+
+  cat > "$NAME/fl-project.json" << MANIFEST
+{
+  "name": "$NAME",
+  "profiles": $PROF_JSON
+}
+MANIFEST
+  _ok "fl-project.json 생성"
+
+  # hello.fl
+  cat > "$NAME/hello.fl" << FL
+(println "Hello from $NAME!")
+FL
+  _ok "hello.fl 생성"
+
+  # 런타임 초기화
+  if [[ ${#PROFILES[@]} -gt 0 ]]; then
+    echo ""
+    echo "→ 런타임 초기화 중..."
+    FL_PROJECT=$(cat "$NAME/fl-project.json")
+    RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
+      -H "Content-Type: application/json" \
+      -d "{\"fl_project\": $FL_PROJECT}" 2>/dev/null)
+
+    OK=$(python3 -c "import json,sys; d=json.loads('$RESULT'.replace(\"'\",\"'\")); print(d.get('ok',False))" 2>/dev/null || \
+         echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok',False))" 2>/dev/null)
+
+    if [[ "$OK" == "True" ]]; then
+      _ok "런타임 초기화 완료"
+      echo "$RESULT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for p in d.get('packages',[]):
+    icon = '↩' if p['action']=='skipped' else '+'
+    print(f'  {icon} {p[\"name\"]} ({p[\"action\"]})')
+rp = d.get('resolved_profiles',[])
+if rp: print(f'  profiles resolved: {\" → \".join(rp)}')
+" 2>/dev/null
+    else
+      _fail "런타임 초기화 실패"
+      echo "$RESULT" | python3 -m json.tool 2>/dev/null || echo "$RESULT"
+    fi
+  fi
+
+  echo ""
+  echo "프로젝트 준비 완료:"
+  echo "  $NAME/fl-project.json"
+  echo "  $NAME/hello.fl"
+  ;;
+
+# ─────────────────────────────
+# fl profile list
+# fl profile add <name>[@version]
+# ─────────────────────────────
+profile)
+  subcmd=$1; shift
+  case "$subcmd" in
+    list)
+      curl -s "$FX_HOST/fx/profiles" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(f'프로파일 {d[\"count\"]}개:')
+for p in d['profiles']:
+    icon = '✓' if p['installed'] else '○'
+    deps = (' (depends: ' + ', '.join(p.get('depends',[])) + ')') if p.get('depends') else ''
+    print(f'  {icon} {p[\"name\"]:10s}  {len(p[\"packages\"]):2d}개 함수{deps}')
+" 2>/dev/null
+      ;;
+
+    add)
+      SPEC=$1
+      if [[ -z "$SPEC" ]]; then
+        echo "사용법: fl profile add <name>[@version]" >&2; exit 1
+      fi
+      PNAME="${SPEC%%@*}"
+      PVER="${SPEC##*@}"
+      if [[ "$PVER" == "$SPEC" ]]; then PVER=""; fi
+
+      if [[ -n "$PVER" ]]; then
+        PAYLOAD="{\"profiles\":[{\"name\":\"$PNAME\",\"version\":\"$PVER\"}]}"
+      else
+        PAYLOAD="{\"profiles\":[\"$PNAME\"]}"
+      fi
+
+      RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD" 2>/dev/null)
+
+      echo "$RESULT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if d.get('ok'):
+    print(f'✓ {d[\"action\"]}')
+    for p in d.get('packages',[]):
+        icon = '↩' if p['action']=='skipped' else '+'
+        print(f'  {icon} {p[\"name\"]} ({p[\"action\"]})')
+    rp = d.get('resolved_profiles',[])
+    if rp: print(f'  depends chain: {\" → \".join(rp)}')
+else:
+    print(f'✗ {d.get(\"error\",\"알 수 없는 오류\")}')
+    if d.get('error') == 'PROFILE_ABI_MISMATCH':
+        print(f'  프로파일: {d.get(\"profile\")} expected={d.get(\"expected\")} got={d.get(\"got\")}')
+" 2>/dev/null
+      ;;
+
+    *)
+      echo "사용법: fl profile list | fl profile add <name>[@version]" ;;
+  esac
+  ;;
+
+# ─────────────────────────────
+help|--help|-h|'')
+  cat << HELP
+fl — FreeLang 프로젝트 CLI
+
+명령어:
+  fl new <name> [--profile p1,p2,...]   프로젝트 생성 + 런타임 초기화
+  fl profile list                        설치된/사용 가능한 프로파일 목록
+  fl profile add <name>[@version]        프로파일 추가
+
+환경변수:
+  FX_HOST  fl-source-manager 주소 (기본: http://localhost:40330)
+
+예시:
+  fl new my-api --profile web,math
+  fl new cli-tool --profile string,path
+  fl profile add time
+  fl profile list
+HELP
+  ;;
+
+*)
+  echo "알 수 없는 명령: $cmd (fl --help 참조)" >&2; exit 1 ;;
+esac
