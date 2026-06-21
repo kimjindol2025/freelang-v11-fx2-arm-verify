@@ -9,7 +9,7 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="${CGC_BIN:-/root/freelang-v11/bin/cgc-bin}"
+CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
 
 # 플래그 파싱
 NO_NET=0
@@ -238,7 +238,7 @@ else
   EXTRA_CFLAGS=""
 fi
 
-RUNTIME_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
+CORE_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/json.c $RUNTIME_DIR/math.c $RUNTIME_DIR/process.c \
   $RUNTIME_DIR/error.c $NET_SRCS $RUNTIME_DIR/aliases.c \
   $RUNTIME_DIR/sqlite.c $RUNTIME_DIR/debug.c $RUNTIME_DIR/gc.c \
@@ -247,16 +247,40 @@ RUNTIME_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/builtins-shim.c"
 
 if [ -f "$RUNTIME_DIR/mariadb.c" ]; then
-  RUNTIME_SRCS="$RUNTIME_SRCS $RUNTIME_DIR/mariadb.c"
+  CORE_SRCS="$CORE_SRCS $RUNTIME_DIR/mariadb.c"
   echo "   + MariaDB dlopen 바인딩 포함"
 fi
 
+# ── libfx.a 캐시 (런타임 변경 시에만 재빌드) ─────────────────────
+LIBFX_A="$RUNTIME_DIR/libfx.a"
+LIBFX_HASH_FILE="$RUNTIME_DIR/.libfx_hash"
+CURRENT_HASH=$(md5sum $CORE_SRCS "$RUNTIME_DIR/runtime.h" 2>/dev/null | md5sum | cut -d' ' -f1)
+
+if [ ! -f "$LIBFX_A" ] || [ "$(cat "$LIBFX_HASH_FILE" 2>/dev/null)" != "${CURRENT_HASH}_${NO_NET}" ]; then
+  echo "   📦 libfx.a 빌드 중... (런타임 변경 감지)"
+  OBJ_DIR="/tmp/fl_runtime_objs_$$"
+  mkdir -p "$OBJ_DIR"
+  for src in $CORE_SRCS; do
+    obj="$OBJ_DIR/$(basename "$src" .c).o"
+    gcc -O2 -c "$src" -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$obj" &
+  done
+  wait
+  ar rcs "$LIBFX_A" "$OBJ_DIR"/*.o
+  rm -rf "$OBJ_DIR"
+  echo "${CURRENT_HASH}_${NO_NET}" > "$LIBFX_HASH_FILE"
+  echo "   ✅ libfx.a 완성 (이후 빌드는 재사용)"
+else
+  echo "   ✅ libfx.a 캐시 사용"
+fi
+
+# user-fns.c — 패키지 추가 시 변경되므로 항상 재컴파일
+USER_SRCS=""
 if [ -f "$RUNTIME_DIR/user-fns.c" ]; then
-  RUNTIME_SRCS="$RUNTIME_SRCS $RUNTIME_DIR/user-fns.c"
+  USER_SRCS="$RUNTIME_DIR/user-fns.c"
 fi
 
 GCC_LOG="/tmp/fl_gcc_$$.log"
-if gcc -O2 -Werror=implicit-function-declaration -o "$OUTPUT" $C_FILE $RUNTIME_SRCS \
+if gcc -O2 -Werror=implicit-function-declaration -o "$OUTPUT" $C_FILE $USER_SRCS "$LIBFX_A" \
   -I "$RUNTIME_DIR" $EXTRA_CFLAGS \
   -rdynamic -lpthread -lm -ldl -lsqlite3 $NET_LIBS \
   -w 2>"$GCC_LOG"; then
