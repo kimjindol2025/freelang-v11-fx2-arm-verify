@@ -1,0 +1,21 @@
+[project]
+name = "fx2-conformance"
+entry = "conformance.fl"
+output = "conformance-bin"
+
+[runtime]
+packages = [
+  "str-indent",
+  "str-truncate",
+  "str-rpad",
+  "str-count",
+  "str-lines",
+  "math-clamp",
+  "math-lerp",
+  "math-round-n",
+  "math-sign",
+  "time-now-ms",
+  "time-elapsed",
+  "path-basename",
+  "path-dirname",
+]

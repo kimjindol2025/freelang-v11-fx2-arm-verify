@@ -1,0 +1,48 @@
+;; fx.rules — spec/conformance.fl 용 최소 규칙
+;;
+;; 이 파일은 fl-rules-runner.fl에서 로드된다.
+;; 각 check-*는 ($src $lines) 를 인자로 받는 함수를 등록한다.
+
+(defn _line-has [$lines $needle]
+  (some (fn [$l] (str-includes $l $needle)) $lines))
+
+(defn _line-has-any [$lines $needles]
+  (some (fn [$n] (_line-has $lines $n)) $needles))
+
+;; 금지: range 단인자
+(check-error
+  "range 단인자 금지"
+  (fn [$src $lines]
+    (if (_line-has $lines "(range ")
+      (if (_line-has $lines "(range 0 ") nil
+        "use (range 0 n) instead of (range n)")
+      nil)))
+
+;; 금지: str-includes를 숫자와 비교
+(check-error
+  "str-includes는 boolean"
+  (fn [$src $lines]
+    (if (_line-has $lines "(= (str-includes")
+      "do not compare str-includes with 1"
+      nil)))
+
+;; 금지: 언더스코어 표준 함수명
+(check-error
+  "케밥케이스 함수명"
+  (fn [$src $lines]
+    (if (_line-has-any $lines
+          ["file_read" "file_write" "file_exists"
+           "json_parse" "json_stringify" "json_try_parse"
+           "str_includes" "str_contains" "str_split" "str_join" "str_trim" "str_replace"
+           "sqlite_query" "sqlite_exec" "sqlite_open" "sqlite_one"])
+      "underscore function names are forbidden"
+      nil)))
+
+;; 경고: 클로저 캡처는 현재 제약
+(check-warn
+  "outer let 캡처"
+  (fn [$src $lines]
+    (if (_line-has $lines "(fn [")
+      "fn closure capture is limited; prefer atom/parameter passing"
+      nil)))
+
