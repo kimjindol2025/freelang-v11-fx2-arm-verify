@@ -742,7 +742,7 @@ FLValue fl_comp(FLValue f, FLValue g) {
     /* fl_comp(f, g) 자체는 잘 안 쓰임 — 대신 cgc가 직접 emit */
     /* 여기서는 fl_fn_call로 compose 함수 반환은 불가, 대신 apply */
     (void)f; (void)g;
-    return fl_nil();  /* TODO: closure 지원 시 개선 */
+    return fl_nil();  /* intentional limitation: comp is frozen until closure support is implemented */
 }
 
 /* map-vals: 맵의 모든 값에 fn 적용 */
