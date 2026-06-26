@@ -83,12 +83,15 @@ let의 `FLValue acc`와 충돌 → gcc `redeclaration` / `undeclared`.
 
 ## 우선순위 (영향 / 위험 비)
 
-| # | 버그 | 영향 | 수정 위치 | 위험 | 권장 |
-|---|------|------|----------|------|------|
-| 2 | defn 단일 표현식 | 🔴 데이터 무손실 실패 | 2개 함수 | 낮음 | **1순위** |
-| 3 | 맵 키 충돌 | 🟠 컴파일 실패 | 1개 함수 | 낮음 | 2순위 |
-| 1 | 클로저 캡처 | 🔴 런타임 실패 | 1개 함수 (대칭화) | 중간 | 3순위 |
-| 5 | 연산자 first-class | 🟠 표현력 제약 | 매핑 테이블 | 중간 | 4순위 |
+| # | 버그 | 영향 | 수정 위치 | 위험 | 순위 | 패치 |
+|---|------|------|----------|------|------|------|
+| 2 | defn 단일 표현식 | 🔴 데이터 무손실 실패 | 2개 함수 | 낮음 | 1 | [patches/bug2-defn-implicit-do](patches/bug2-defn-implicit-do.patch.md) ✅ |
+| 3 | 맵 키 충돌 | 🟠 컴파일 실패 | 1개 함수 | 낮음 | 2 | [patches/bug3-map-key-collision](patches/bug3-map-key-collision.patch.md) ✅ |
+| 1 | 클로저 캡처 | 🔴 런타임 실패 | 1개 함수 (대칭화) | 중간 | 3 | [patches/bug1-closure-capture-asymmetry](patches/bug1-closure-capture-asymmetry.patch.md) ✅ |
+| 5 | 연산자 first-class | 🟠 표현력 제약 | 합성 래퍼 | 높음 | 4 | [patches/bug5-operator-first-class](patches/bug5-operator-first-class.patch.md) ✅ |
+
+> **패치 4종 모두 준비 완료** (2026-06-26). 적용 순서 = 위험 오름차순 2→3→1→5.
+> 각 패치는 환경 블로커로 이 노드에서 미검증 — x86 노드(kimjin) 핸드오프 대기.
 
 **근거**: #2·#3은 국소 수정 + 낮은 위험이면서 영향이 크다. #1은 캡처 분석
 전반에 영향을 줘 회귀 위험이 더 크므로 #2·#3 안정화 후 착수.
