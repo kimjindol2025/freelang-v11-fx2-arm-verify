@@ -35,7 +35,26 @@ fx(C-네이티브) 컴파일 경로의 불안정 버그 4종. **인터프리터(
 
 ---
 
-## 적용 워크플로우 (패치 1건당)
+## 자동 적용 스크립트 (권장)
+
+```bash
+bash apply-on-x86.sh --dry-run     # 앵커 매칭만 확인 (수정 X) — 먼저 실행
+bash apply-on-x86.sh all           # 2→3→1→5 순서로 게이트·롤백 적용
+bash apply-on-x86.sh --bug 2       # 한 건만
+bash apply-on-x86.sh all --commit  # 각 단계 통과 시 git 커밋
+```
+
+- `_edits.py` — 앵커 기반 정확 문자열 편집 (단일 매칭 검증, 불일치 시 중단·보존)
+- 각 버그마다 **백업 → 적용 → 재빌드 → 고정점 → 재현 → conformance** 게이트,
+  하나라도 실패 시 `.bak` 원복. 고정점 스크립트 부재 시 침묵 생략 금지(`--skip-fixpoint` 명시 요구).
+- 경로는 환경변수로 오버라이드: `CODEGEN`, `BUILD_CMD`, `FIXPOINT`, `FLBUILD`, `CONF`.
+- 앵커는 라인번호가 아닌 문자열 기준 → 패치 누적으로 줄이 밀려도 안전.
+
+> 편집 로직(앵커 매칭·치환)은 아키텍처 무관하게 검증됨. 빌드/고정점/conformance만 x86 노드 필요.
+
+---
+
+## 적용 워크플로우 (패치 1건당, 수동)
 
 ```bash
 # 1. codegen-c.fl 수정 (해당 패치의 before/after 적용)
