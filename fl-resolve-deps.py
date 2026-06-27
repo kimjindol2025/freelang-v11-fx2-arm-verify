@@ -51,12 +51,16 @@ def main():
         print("  (해결된 패키지 없음 — user-fns.c 변경 없음)")
         return
 
-    # packages → C 코드 수집
+    # packages → C 코드 수집 (P2.1 디렉토리 구조 우선, 구형 flat JSON 폴백)
     fn_sections  = []  # (name, arity, body)
     missing      = []
     for pkgname in all_packages:
-        pkgfile = os.path.join(packages_dir, f"{pkgname}.json")
-        if not os.path.exists(pkgfile):
+        # P2.1: packages/name/metadata.json
+        new_path = os.path.join(packages_dir, pkgname, "metadata.json")
+        # 구형: packages/name.json
+        old_path = os.path.join(packages_dir, f"{pkgname}.json")
+        pkgfile = new_path if os.path.exists(new_path) else (old_path if os.path.exists(old_path) else None)
+        if not pkgfile:
             print(f"  ⚠️  패키지 없음: {pkgname}", file=sys.stderr)
             missing.append(pkgname)
             continue
