@@ -1,0 +1,17 @@
+[project]
+name   = "fx2-registry"
+entry  = "server.fl"
+output = "fx2-registry-bin"
+port   = 40330
+
+[runtime]
+packages = [
+  "json-stringify",
+  "path-basename"
+]
+
+[metadata]
+description = "fx2 패키지 레지스트리 서버 (HTTP API)"
+version = "1.0.0"
+author = "Claude Code"
+created = "2026-06-27"

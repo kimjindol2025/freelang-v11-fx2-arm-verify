@@ -1,0 +1,79 @@
+;; server.fl — fx2-registry HTTP 서버
+;; 포트 40330에서 모든 API 요청 처리
+
+(load "./modules.fl")
+
+(println "=== fx2-registry 시작 ===")
+(println "포트: 40330")
+(println "기능: 패키지 설치/제거/조회/테스트")
+(println "")
+
+;; ─── GET /fx/packages ───────────────────────────────────────────
+;; 전체 패키지 목록 조회
+(defn handle-list-packages [$req]
+  (let [$pkgs (list-packages)]
+    (server-json (json_stringify
+      {"ok" true
+       "data" {"packages" $pkgs}}))))
+
+;; ─── GET /fx/fns/:name ──────────────────────────────────────────
+;; 특정 패키지 정보 조회
+(defn handle-get-package [$req]
+  (let [$name (get (get $req "params") "name")
+        $pkg (get-package-info $name)]
+    (if (nil? $pkg)
+      (server-json (json_stringify
+        {"ok" false
+         "error" "Package not found"}))
+      (server-json (json_stringify
+        {"ok" true
+         "data" $pkg})))))
+
+;; ─── POST /fx/fns/import ────────────────────────────────────────
+;; 패키지 설치 (빌드)
+(defn handle-install-package [$req]
+  (let [$body (get $req "body")
+        $name (get $body "name")
+        $result (build-package $name)]
+    (server-json (json_stringify
+      {"ok" (get $result "ok")
+       "data" $result}))))
+
+;; ─── DELETE /fx/fns/:name ───────────────────────────────────────
+;; 패키지 제거
+(defn handle-remove-package [$req]
+  (let [$name (get (get $req "params") "name")
+        $result (remove-package $name)]
+    (server-json (json_stringify
+      {"ok" (get $result "ok")
+       "data" $result}))))
+
+;; ─── POST /fx/fns/:name/test ────────────────────────────────────
+;; 패키지 테스트 실행
+(defn handle-test-package [$req]
+  (let [$name (get (get $req "params") "name")
+        $result (test-package $name)]
+    (server-json (json_stringify
+      {"ok" (get $result "ok")
+       "data" $result}))))
+
+;; ─── 헬스 체크 ──────────────────────────────────────────────────
+(defn handle-health [$req]
+  (server-json (json_stringify
+    {"ok" true
+     "service" "fx2-registry"
+     "version" "1.0.0"
+     "uptime_ms" (now-ms)})))
+
+;; ─── 라우팅 ─────────────────────────────────────────────────────
+(server-get "/fx/packages"            "handle-list-packages")
+(server-get "/fx/fns/:name"           "handle-get-package")
+(server-post "/fx/fns/import"         "handle-install-package")
+(server-delete "/fx/fns/:name"        "handle-remove-package")
+(server-post "/fx/fns/:name/test"     "handle-test-package")
+(server-get "/health"                 "handle-health")
+
+;; ─── 서버 시작 ──────────────────────────────────────────────────
+(server-start 40330)
+(println "✅ fx2-registry 준비 완료")
+(println "   http://localhost:40330/health 로 확인")
