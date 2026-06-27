@@ -1,0 +1,12 @@
+{
+  "name": "str-lines",
+  "version": "1.0.0",
+  "args": 1,
+  "tags": [
+    "string",
+    "parsing"
+  ],
+  "description": "문자열을 줄 단위로 분리해서 배열 반환 (str-lines s)",
+  "body": "FLValue ufl_str_lines(FLValue s) {\n    if (s.tag != FL_STRING) return fl_vec_new();\n    const char* src = ((FLString*)s.obj)->data;\n    FLValue builder = fl_vec_builder_new();\n    const char* start = src;\n    for (const char* p = src; ; p++) {\n        if (*p == '\\n' || *p == '\\0') {\n            size_t len = p - start;\n            if (len > 0) {\n                char* buf = (char*)fl_arena_alloc(len + 1);\n                memcpy(buf, start, len);\n                buf[len] = 0;\n                fl_vec_builder_push(builder, fl_str_val(buf));\n            }\n            if (*p == '\\0') break;\n            start = p + 1;\n        }\n    }\n    return fl_vec_builder_freeze(builder);\n}",
+  "test": "(let [$lines (str-lines \"hello\\nworld\\nfx2\")]\n  (println (length $lines))\n  (println (nth $lines 0))\n  (println (nth $lines 2)))"
+}

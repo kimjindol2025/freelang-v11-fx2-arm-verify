@@ -4,17 +4,22 @@
 (define PACKAGES_DIR "/home/kimjin/freelang-v11-fx2/packages")
 
 ;; ─── 패키지 읽기 ───────────────────────────────────────────────
-;; 디렉토리에서 모든 .json 패키지 로드
+;; 디렉토리에서 모든 패키지 로드
+;; 각 패키지는 packages/name/ 디렉토리 구조
 (defn load-all-packages []
-  (let [$files (file-list PACKAGES_DIR)]
-    (filter (fn [$f]
-      (not (nil? (index-of $f ".json"))))
-      $files)))
+  (let [$dirs (file-list PACKAGES_DIR)]
+    (filter (fn [$d]
+      ;; 디렉토리이고 . 로 시작하지 않는 것만
+      (and
+        (file-is-dir? (str PACKAGES_DIR "/" $d))
+        (not (str-starts-with $d "."))))
+      $dirs)))
 
 ;; ─── 패키지 파싱 ───────────────────────────────────────────────
-;; path: "packages/str-indent.json" → {"name" "str-indent" ...}
+;; path: "packages/str-indent/" → {"name" "str-indent" ...}
+;; 새 구조: packages/name/metadata.json
 (defn parse-package [$pkg-name]
-  (let [$path (str PACKAGES_DIR "/" $pkg-name)]
+  (let [$path (str PACKAGES_DIR "/" $pkg-name "/metadata.json")]
     (try
       (let [$content (file-read $path)]
         (json-parse $content))
@@ -23,19 +28,22 @@
 ;; ─── 전체 패키지 목록 ───────────────────────────────────────────
 ;; 반환: [{"name" "str-indent" "version" "1.0.0" "installed" false} ...]
 (defn list-packages []
-  (let [$pkg-files (load-all-packages)]
-    (map (fn [$fname]
-      (let [$pkg (parse-package $fname)
-            $name (get $pkg "name")]
-        {"name" $name
-         "version" (get $pkg "version")
-         "installed" false}))
-      $pkg-files)))
+  (let [$pkg-dirs (load-all-packages)
+        $pkgs-raw (map (fn [$dname]
+          (let [$pkg (parse-package $dname)]
+            (if (nil? $pkg)
+              nil
+              {"name" (get $pkg "name")
+               "version" (get $pkg "version")
+               "description" (get $pkg "description")
+               "installed" false})))
+          $pkg-dirs)]
+    ;; nil 값 제거
+    (filter (fn [$p] (not (nil? $p))) $pkgs-raw)))
 
 ;; ─── 패키지 정보 조회 ───────────────────────────────────────────
 (defn get-package-info [$name]
-  (let [$pkg-file (str $name ".json")]
-    (parse-package $pkg-file)))
+  (parse-package $name))
 
 ;; ─── 패키지 빌드 ───────────────────────────────────────────────
 ;; 패키지 C 코드를 컴파일

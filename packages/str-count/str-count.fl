@@ -1,0 +1,6 @@
+;; packages/str-count/str-count.fl
+;; 자동 생성된 패키지 래퍼
+
+(defn str-count [& args]
+  ;; 런타임 구현 placeholder
+  nil)

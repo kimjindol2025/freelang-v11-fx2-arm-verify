@@ -1,0 +1,10 @@
+{
+  "name": "str-starts-with",
+  "version": "1.0.0",
+  "args": 2,
+  "builtin": true,
+  "tags": ["string", "search"],
+  "description": "문자열이 prefix로 시작하는지 (str-starts-with s prefix) → bool",
+  "body": "FLValue ufl_str_starts_with(FLValue s, FLValue prefix) {\n    if (s.tag != FL_STRING || prefix.tag != FL_STRING) return fl_bool(0);\n    const char* src = ((FLString*)s.obj)->data;\n    const char* pre = ((FLString*)prefix.obj)->data;\n    size_t plen = strlen(pre);\n    return fl_bool(strncmp(src, pre, plen) == 0);\n}",
+  "test": "(println (str-starts-with \"hello world\" \"hello\"))\n(println (str-starts-with \"hello world\" \"world\"))"
+}

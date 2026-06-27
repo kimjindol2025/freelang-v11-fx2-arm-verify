@@ -1,0 +1,6 @@
+;; packages/path-dirname/path-dirname.fl
+;; 자동 생성된 패키지 래퍼
+
+(defn path-dirname [& args]
+  ;; 런타임 구현 placeholder
+  nil)

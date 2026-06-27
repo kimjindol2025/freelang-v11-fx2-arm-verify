@@ -1,0 +1,7 @@
+;; packages/str-indent/str-indent.fl
+;; str-indent — 문자열 앞에 n개 공백 추가
+
+(defn str-indent [s n]
+  (if (and (string? s) (integer? n))
+    (str (str-repeat " " n) s)
+    s))

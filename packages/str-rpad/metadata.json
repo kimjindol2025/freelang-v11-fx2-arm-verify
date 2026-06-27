@@ -1,0 +1,12 @@
+{
+  "name": "str-rpad",
+  "version": "1.0.0",
+  "args": 3,
+  "tags": [
+    "string",
+    "formatting"
+  ],
+  "description": "문자열을 오른쪽으로 n자까지 padding (str-pad-right s n ch)",
+  "body": "FLValue ufl_str_rpad(FLValue s, FLValue n, FLValue ch) {\n    if (s.tag != FL_STRING || n.tag != FL_INT) return s;\n    const char* src = ((FLString*)s.obj)->data;\n    size_t slen = strlen(src);\n    int64_t total = n.i < 0 ? 0 : n.i;\n    if ((int64_t)slen >= total) return s;\n    char pad = (ch.tag == FL_STRING && ((FLString*)ch.obj)->data[0]) ? ((FLString*)ch.obj)->data[0] : 32;\n    char* buf = (char*)fl_arena_alloc(total + 1);\n    if (!buf) return s;\n    memcpy(buf, src, slen);\n    memset(buf + slen, pad, total - slen);\n    buf[total] = 0;\n    return fl_str_val(buf);\n}",
+  "test": "(println (str-pad-right \"hi\" 10 \" \"))\n(println (str-pad-right \"hello\" 3 \" \"))"
+}
