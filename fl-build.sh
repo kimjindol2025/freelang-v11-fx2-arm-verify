@@ -9,7 +9,44 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
+
+pick_cgc_bin() {
+  if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
+    echo "$CGC_BIN"
+    return 0
+  fi
+
+  case "$(uname -m)" in
+    aarch64|arm64)
+      for candidate in         /root/freelang-v11/bin/cgc-bin.bak         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup         /home/kimjin/freelang-v11/bin/cgc-bin
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    *)
+      for candidate in         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin.bak         /home/kimjin/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+  esac
+
+  return 1
+}
+
+CGC_BIN="$(pick_cgc_bin || true)"
+if [ -z "$CGC_BIN" ]; then
+  echo "❌ cgc-bin 실행 파일을 찾지 못했습니다."
+  echo "   /root/freelang-v11/bin/cgc-bin.bak 같은 arm64 빌드나"
+  echo "   환경변수 CGC_BIN을 지정해서 다시 시도하세요."
+  exit 1
+fi
 
 # 플래그 파싱
 NO_NET=0

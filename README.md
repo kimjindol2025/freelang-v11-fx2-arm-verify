@@ -37,6 +37,14 @@ bash fl-build.sh hello.fl hello-bin
 
 | 문서 | 내용 |
 |------|------|
+| **[CLAUDE.airc](./CLAUDE.airc)** | 안정 규칙, 제약, 문서 인덱스 |
+| **[BUILD.md](./BUILD.md)** | 빌드/실행 방법 |
+| **[DEBUG.md](./DEBUG.md)** | 저수준 실패 재현 |
+| **[TESTING.md](./TESTING.md)** | 테스트/검증 규칙 |
+| **[SECURITY.md](./SECURITY.md)** | escape, SQL, 입력 검증 |
+| **[ROADMAP.md](./ROADMAP.md)** | 현재 우선순위 |
+| **[CHANGELOG.md](./CHANGELOG.md)** | 변경 이력 |
+| **[LANGUAGE-REVIEW-POLICY.md](./LANGUAGE-REVIEW-POLICY.md)** | 언어 리뷰 분류 기준 |
 | **[INTRODUCTION.md](./INTRODUCTION.md)** | 언어 소개 + 파이프라인 + 장단점 |
 | **[SPEC.md](./SPEC.md)** | 완전한 언어 사양 (truthiness, 함수, 제약) |
 | **[RELEASE-GATE.md](./RELEASE-GATE.md)** | 정식 릴리즈 체크리스트 |
