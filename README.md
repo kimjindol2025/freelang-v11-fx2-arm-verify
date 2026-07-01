@@ -45,6 +45,7 @@ bash fl-build.sh hello.fl hello-bin
 | **[ROADMAP.md](./ROADMAP.md)** | 현재 우선순위 |
 | **[CHANGELOG.md](./CHANGELOG.md)** | 변경 이력 |
 | **[LANGUAGE-REVIEW-POLICY.md](./LANGUAGE-REVIEW-POLICY.md)** | 언어 리뷰 분류 기준 |
+| **[ssr-app/](./ssr-app/)** | SSR 프론트 서버 예제 |
 | **[INTRODUCTION.md](./INTRODUCTION.md)** | 언어 소개 + 파이프라인 + 장단점 |
 | **[SPEC.md](./SPEC.md)** | 완전한 언어 사양 (truthiness, 함수, 제약) |
 | **[RELEASE-GATE.md](./RELEASE-GATE.md)** | 정식 릴리즈 체크리스트 |

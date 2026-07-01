@@ -1,0 +1,254 @@
+;; ssr-app/app.fl — fx2 SSR Front Server Demo
+
+(define SERVER_PORT 8435)
+(define VISITS (atom 0))
+(define TASKS (atom (list
+  {"id" 1 "title" "Landing hero" "done" true}
+  {"id" 2 "title" "Navigation shell" "done" true}
+  {"id" 3 "title" "Task form" "done" false}
+  {"id" 4 "title" "JSON endpoint" "done" false}
+)))
+(define NEXT_ID (atom 5))
+
+(defn html-escape [$s]
+  (let [$v (if (nil? $s) "" $s)
+        $e1 (str-replace $v "&" "&amp;")
+        $e2 (str-replace $e1 "<" "&lt;")
+        $e3 (str-replace $e2 ">" "&gt;")
+        $e4 (str-replace $e3 "\"" "&quot;")
+        $e5 (str-replace $e4 "'" "&#39;")]
+    $e5))
+
+(defn text-or [$v $fallback]
+  (if (nil? $v) $fallback $v))
+
+(defn req-query [$req $name]
+  (get (get $req "query") $name))
+
+(defn task-count [$tasks]
+  (length $tasks))
+
+(defn done-count-from [$tasks $idx]
+  (if (>= $idx (length $tasks))
+    0
+    (let [$task (first $tasks)]
+      (+ (if (get $task "done") 1 0)
+         (done-count-from (rest $tasks) (+ $idx 1))))))
+
+(defn done-count [$tasks]
+  (done-count-from $tasks 0))
+
+(defn open-count [$tasks]
+  (- (task-count $tasks) (done-count $tasks)))
+
+(defn next-task-id []
+  (let [$id (deref NEXT_ID)]
+    (swap! NEXT_ID (fn [$n] (+ $n 1)))
+    $id))
+
+(defn normalize-title [$title]
+  (str-trim (text-or $title "")))
+
+(defn add-task! [$title]
+  (let [$clean (normalize-title $title)]
+    (if (= $clean "")
+      false
+      (do
+        (swap! TASKS (fn [$tasks]
+          (concat $tasks (list {"id" (next-task-id) "title" $clean "done" false}))))
+        true))))
+
+(defn toggle-task-list [$tasks $idx $target-id $acc]
+  (if (>= $idx (length $tasks))
+    $acc
+    (let [$task (first $tasks)
+          $new-task (if (= (get $task "id") $target-id)
+            (assoc $task "done" (if (get $task "done") false true))
+            $task)]
+      (toggle-task-list (rest $tasks) (+ $idx 1) $target-id (concat $acc (list $new-task))))))
+
+(defn toggle-task! [$id]
+  (swap! TASKS (fn [$tasks]
+    (toggle-task-list $tasks 0 $id (list)))))
+
+(defn clear-done-list [$tasks $idx $acc]
+  (if (>= $idx (length $tasks))
+    $acc
+    (let [$task (first $tasks)]
+      (if (get $task "done")
+        (clear-done-list (rest $tasks) (+ $idx 1) $acc)
+        (clear-done-list (rest $tasks) (+ $idx 1) (concat $acc (list $task)))))))
+
+(defn clear-done! []
+  (swap! TASKS (fn [$tasks]
+    (clear-done-list $tasks 0 (list)))))
+
+(defn task-pill [$done]
+  (if $done
+    "<span class='pill pill-done'>done</span>"
+    "<span class='pill pill-open'>open</span>"))
+
+(defn task-item [$task]
+  (let [$id (get $task "id")
+        $title (html-escape (get $task "title"))
+        $done (get $task "done")
+        $label (task-pill $done)
+        $button-label (if $done "Mark open" "Mark done")]
+    (str
+      "<li class='task'>"
+      "<div class='task-main'>"
+      "<div class='task-title'>" $title "</div>"
+      "<div class='task-meta'>#" $id " · " $label "</div>"
+      "</div>"
+      "<form method='get' action='/tasks/toggle' class='inline-form'>"
+      "<input type='hidden' name='id' value='" $id "'>"
+      "<button type='submit' class='ghost'>" $button-label "</button>"
+      "</form>"
+      "</li>")))
+
+(defn render-tasks [$tasks $idx]
+  (if (>= $idx (length $tasks))
+    ""
+    (str (task-item (first $tasks)) (render-tasks (rest $tasks) (+ $idx 1)))))
+
+(defn task-list [$tasks]
+  (if (= (length $tasks) 0)
+    "<div class='empty'>할 일이 없습니다.</div>"
+    (str "<ul class='task-list'>" (render-tasks $tasks 0) "</ul>")))
+
+(defn feature-card [$title $desc]
+  (str "<article class='card'><h3>" (html-escape $title) "</h3><p>" (html-escape $desc) "</p></article>"))
+
+(defn dashboard-page [$message]
+  (let [$tasks (deref TASKS)
+        $visits (deref VISITS)
+        $msg-html (if (= (text-or $message "") "") "" (str "<div class='notice'>" (html-escape $message) "</div>"))]
+    (str
+      "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+      "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+      "<title>fx2 SSR Front Server</title>"
+      "<style>"
+      "*{box-sizing:border-box}"
+      "body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:radial-gradient(circle at top,#0f1d36 0,#0b1220 40%,#05070b 100%);color:#e6edf3}"
+      ".wrap{max-width:1180px;margin:0 auto;padding:28px 18px 56px}"
+      ".hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:20px}"
+      ".eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8fb3ff}"
+      ".dot{width:8px;height:8px;border-radius:999px;background:#58a6ff;box-shadow:0 0 16px #58a6ff}"
+      "h1{margin:10px 0 8px;font-size:42px;line-height:1.05}"
+      ".sub{margin:0;max-width:760px;color:#9aa4b2;line-height:1.6}"
+      ".hero-card{min-width:250px;padding:18px;border:1px solid #263249;border-radius:20px;background:rgba(17,24,39,.8);backdrop-filter:blur(12px)}"
+      ".metric{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 24px}"
+      ".metric-card,.card,.panel,.notice{background:rgba(13,17,23,.86);border:1px solid #2d3748;border-radius:18px;box-shadow:0 14px 34px rgba(0,0,0,.22)}"
+      ".metric-card{padding:14px 16px}"
+      ".metric-card .label{font-size:12px;color:#8b949e;margin-bottom:4px}"
+      ".metric-card .value{font-size:28px;font-weight:800;color:#f0f6fc}"
+      ".grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:18px;align-items:start}"
+      ".panel{padding:18px}"
+      ".panel h2{margin:0 0 12px;font-size:18px;color:#79c0ff}"
+      ".feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}"
+      ".card{padding:14px 16px;min-height:110px}"
+      ".card h3{margin:0 0 8px;font-size:16px;color:#f0f6fc}"
+      ".card p{margin:0;color:#9aa4b2;line-height:1.5;font-size:14px}"
+      ".notice{padding:14px 16px;margin-bottom:14px;color:#d1e7ff;border-color:#37577a;background:rgba(17,38,62,.72)}"
+      ".task-form{display:flex;gap:10px;align-items:center;margin-bottom:14px}"
+      ".task-form input{flex:1;padding:13px 14px;border-radius:14px;border:1px solid #344054;background:#0b1220;color:#e6edf3;font-size:15px;outline:none}"
+      ".task-form input:focus{border-color:#58a6ff;box-shadow:0 0 0 3px rgba(88,166,255,.13)}"
+      "button{padding:13px 16px;border:0;border-radius:14px;background:linear-gradient(135deg,#2ea043,#238636);color:#fff;font-weight:800;cursor:pointer}"
+      "button.ghost{background:#1f2937;border:1px solid #344054;color:#dbe5f0}"
+      ".task-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}"
+      ".task{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 16px;border-radius:16px;background:#111827;border:1px solid #293548}"
+      ".task-title{font-weight:700;color:#f0f6fc;margin-bottom:4px}"
+      ".task-meta{font-size:12px;color:#8b949e}"
+      ".task-main{min-width:0}"
+      ".inline-form{margin:0}"
+      ".pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700}"
+      ".pill-open{background:#223049;color:#c7d7ff}"
+      ".pill-done{background:#16351f;color:#9ee7af}"
+      ".footer{margin-top:20px;color:#8b949e;font-size:12px}"
+      ".empty{padding:18px;color:#8b949e;border:1px dashed #364152;border-radius:16px}"
+      "@media (max-width: 960px){.grid{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.metric{grid-template-columns:1fr}.hero{flex-direction:column;align-items:stretch}.task-form{flex-direction:column;align-items:stretch}.task{flex-direction:column;align-items:stretch}.inline-form button{width:100%}}"
+      "</style></head><body><div class='wrap'>"
+      "<section class='hero'>"
+      "<div>"
+      "<div class='eyebrow'><span class='dot'></span>FreeLang fx2 · SSR Front Server</div>"
+      "<h1>서버가 HTML을 렌더링하고, 폼이 상태를 바꾸는 프론트 서버</h1>"
+      "<p class='sub'>이 예제는 라우팅, 서버 렌더링, GET 폼 처리, in-memory 상태, JSON API를 한 번에 보여줍니다. React/Vue 같은 SPA가 아니라 서버 중심 웹앱을 직접 만들 수 있는지 확인하는 용도입니다.</p>"
+      "</div>"
+      "<div class='hero-card'>"
+      "<div class='metric-card'><div class='label'>runtime</div><div class='value'>SSR</div></div>"
+      "</div>"
+      "</section>"
+      $msg-html
+      "<section class='metric'>"
+      "<div class='metric-card'><div class='label'>visits</div><div class='value'>" $visits "</div></div>"
+      "<div class='metric-card'><div class='label'>tasks</div><div class='value'>" (task-count $tasks) "</div></div>"
+      "<div class='metric-card'><div class='label'>open</div><div class='value'>" (open-count $tasks) "</div></div>"
+      "</section>"
+      "<section class='grid'>"
+      "<div class='panel'>"
+      "<h2>작동 방식</h2>"
+      "<div class='feature-grid'>"
+      (feature-card "SSR" "GET 요청마다 HTML을 서버에서 렌더링합니다.")
+      (feature-card "GET 폼" "새 작업 추가와 완료 토글을 HTML 폼으로 처리합니다.")
+      (feature-card "JSON API" "브라우저/외부 도구가 읽을 수 있는 상태 API를 제공합니다.")
+      "</div>"
+      "<div class='footer'>라우트: /, /tasks/add, /tasks/toggle, /tasks/clear, /api/state</div>"
+      "</div>"
+      "<div class='panel'>"
+      "<h2>할 일</h2>"
+      "<form method='get' action='/tasks/add' class='task-form'>"
+      "<input type='text' name='title' placeholder='예: 로그인 화면 만들기' autocomplete='off'>"
+      "<button type='submit'>추가</button>"
+      "</form>"
+      "<form method='get' action='/tasks/clear' class='task-form' style='margin-top:-4px'>"
+      "<button type='submit' class='ghost'>완료 항목 제거</button>"
+      "</form>"
+      (task-list $tasks)
+      "</div>"
+      "</section>"
+      "</div></body></html>")))
+
+(defn state-json []
+  (let [$tasks (deref TASKS)]
+    {"ok" true
+     "visits" (deref VISITS)
+     "tasks" $tasks
+     "summary" {"total" (task-count $tasks) "done" (done-count $tasks) "open" (open-count $tasks)}}))
+
+(defn handle-home [$req]
+  (swap! VISITS (fn [$n] (+ $n 1)))
+  (server_html (dashboard-page nil)))
+
+(defn handle-state [$req]
+  (server-json (state-json)))
+
+(defn handle-add [$req]
+  (let [$title (req-query $req "title")]
+    (if (= (normalize-title $title) "")
+      (server-status 400 (dashboard-page "작업 제목을 입력하세요."))
+      (do
+        (add-task! $title)
+        (server-redirect "/")))))
+
+(defn handle-toggle [$req]
+  (let [$id (str-to-num (text-or (req-query $req "id") "0"))]
+    (toggle-task! $id)
+    (server-redirect "/")))
+
+(defn handle-clear [$req]
+  (clear-done!)
+  (server-redirect "/"))
+
+(server_get "/" "handle-home")
+(server_get "/api/state" "handle-state")
+(server_get "/tasks/add" "handle-add")
+(server_get "/tasks/toggle" "handle-toggle")
+(server_get "/tasks/clear" "handle-clear")
+
+(println (str "🚀 fx2 SSR Front Server — http://localhost:" SERVER_PORT))
+(println "   GET  /            SSR 홈")
+(println "   GET  /api/state   JSON 상태")
+(println "   GET  /tasks/add   작업 추가")
+(println "   GET  /tasks/toggle 완료 토글")
+(println "   GET  /tasks/clear  완료 항목 제거")
+(server_start SERVER_PORT)
