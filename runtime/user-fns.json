@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "args": 2,
     "added": "2026-06-20T19:11:55.007Z",
-    "updated": "2026-06-20T19:49:42.699Z",
+    "updated": "2026-06-21T11:41:17.963Z",
     "body": "FLValue ufl_str_indent(FLValue s, FLValue n) {\n    if (s.tag != FL_STRING || n.tag != FL_INT) return s;\n    int64_t cnt = n.i < 0 ? 0 : n.i;\n    const char* src = ((FLString*)s.obj)->data;\n    size_t slen = strlen(src);\n    char* buf = (char*)fl_arena_alloc(cnt + slen + 1);\n    if (!buf) return s;\n    memset(buf, 32, cnt);\n    memcpy(buf + cnt, src, slen);\n    buf[cnt + slen] = 0;\n    return fl_str_val(buf);\n}",
     "bodyHash": "sha256:bfcba54ec7a863e5",
     "test": "(println (str-indent \"hello\" 4))\n(println (str-indent \"world\" 2))",
@@ -14,17 +14,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5307,
-      "ts": "2026-06-20T19:49:48.017Z"
+      "durationMs": 6361,
+      "ts": "2026-06-21T11:41:24.336Z"
     },
-    "buildCount": 8
+    "buildCount": 10
   },
   "math-clamp": {
     "name": "math-clamp",
     "version": "0.1.0",
     "args": 3,
     "added": "2026-06-20T19:22:55.970Z",
-    "updated": "2026-06-20T20:02:44.066Z",
+    "updated": "2026-06-21T11:41:36.947Z",
     "body": "FLValue ufl_math_clamp(FLValue v, FLValue lo, FLValue hi) {\n    double val = (v.tag == FL_INT) ? (double)v.i : v.f;\n    double low = (lo.tag == FL_INT) ? (double)lo.i : lo.f;\n    double high = (hi.tag == FL_INT) ? (double)hi.i : hi.f;\n    if (val < low) val = low;\n    if (val > high) val = high;\n    return fl_float(val);\n}",
     "bodyHash": "sha256:b60dd5d512b20e29",
     "test": "(println (math-clamp 15 0 10))\n(println (math-clamp -3 0 10))\n(println (math-clamp 5 0 10))",
@@ -34,17 +34,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5258,
-      "ts": "2026-06-20T20:02:49.336Z"
+      "durationMs": 6130,
+      "ts": "2026-06-21T11:41:43.089Z"
     },
-    "buildCount": 11
+    "buildCount": 13
   },
   "str-truncate": {
     "name": "str-truncate",
     "version": "0.1.0",
     "args": 3,
     "added": "2026-06-20T19:30:45.616Z",
-    "updated": "2026-06-20T20:02:33.334Z",
+    "updated": "2026-06-21T11:41:24.340Z",
     "body": "FLValue ufl_str_truncate(FLValue s, FLValue n, FLValue suffix) {\n    if (s.tag != FL_STRING || n.tag != FL_INT) return s;\n    const char* src = ((FLString*)s.obj)->data;\n    int64_t maxlen = n.i < 0 ? 0 : n.i;\n    size_t slen = strlen(src);\n    if ((int64_t)slen <= maxlen) return s;\n    const char* suf = (suffix.tag == FL_STRING) ? ((FLString*)suffix.obj)->data : \"...\";\n    size_t suflen = strlen(suf);\n    int64_t cutlen = maxlen - (int64_t)suflen;\n    if (cutlen < 0) cutlen = 0;\n    char* buf = (char*)fl_arena_alloc(cutlen + suflen + 1);\n    if (!buf) return s;\n    memcpy(buf, src, cutlen);\n    memcpy(buf + cutlen, suf, suflen);\n    buf[cutlen + suflen] = 0;\n    return fl_str_val(buf);\n}",
     "bodyHash": "sha256:90063480717624cf",
     "test": "(println (str-truncate \"Hello, world!\" 8 \"...\"))\n(println (str-truncate \"short\" 10 \"...\"))",
@@ -54,17 +54,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5448,
-      "ts": "2026-06-20T20:02:38.795Z"
+      "durationMs": 6235,
+      "ts": "2026-06-21T11:41:30.587Z"
     },
-    "buildCount": 9
+    "buildCount": 11
   },
   "str-count": {
     "name": "str-count",
     "version": "0.1.0",
     "args": 2,
     "added": "2026-06-20T19:34:35.844Z",
-    "updated": "2026-06-20T20:02:27.842Z",
+    "updated": "2026-06-21T11:24:29.630Z",
     "body": "FLValue ufl_str_count(FLValue s, FLValue sub) {\n    if (s.tag != FL_STRING || sub.tag != FL_STRING) return fl_int(0);\n    const char* haystack = ((FLString*)s.obj)->data;\n    const char* needle   = ((FLString*)sub.obj)->data;\n    size_t nlen = strlen(needle);\n    if (nlen == 0) return fl_int(0);\n    int64_t count = 0;\n    const char* p = haystack;\n    while ((p = strstr(p, needle)) != NULL) { count++; p += nlen; }\n    return fl_int(count);\n}",
     "bodyHash": "sha256:fa11b797416a814c",
     "test": "(println (str-count \"hello world hello\" \"hello\"))\n(println (str-count \"aababab\" \"ab\"))",
@@ -74,17 +74,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5472,
-      "ts": "2026-06-20T20:02:33.326Z"
+      "durationMs": 5925,
+      "ts": "2026-06-21T11:24:35.567Z"
     },
-    "buildCount": 8
+    "buildCount": 9
   },
   "math-lerp": {
     "name": "math-lerp",
     "version": "0.1.0",
     "args": 3,
     "added": "2026-06-20T19:34:41.271Z",
-    "updated": "2026-06-20T19:50:09.215Z",
+    "updated": "2026-06-21T11:24:41.478Z",
     "body": "FLValue ufl_math_lerp(FLValue a, FLValue b, FLValue t) {\n    double da = (a.tag == FL_INT) ? (double)a.i : a.f;\n    double db = (b.tag == FL_INT) ? (double)b.i : b.f;\n    double dt = (t.tag == FL_INT) ? (double)t.i : t.f;\n    return fl_float(da + (db - da) * dt);\n}",
     "bodyHash": "sha256:a735d3686085944f",
     "test": "(println (math-lerp 0 100 0.5))\n(println (math-lerp 10 20 0.25))",
@@ -94,17 +94,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5147,
-      "ts": "2026-06-20T19:50:14.375Z"
+      "durationMs": 6019,
+      "ts": "2026-06-21T11:24:47.511Z"
     },
-    "buildCount": 4
+    "buildCount": 5
   },
   "math-sign": {
     "name": "math-sign",
     "version": "0.1.0",
     "args": 1,
     "added": "2026-06-20T19:34:47.927Z",
-    "updated": "2026-06-20T19:50:19.824Z",
+    "updated": "2026-06-21T11:24:53.339Z",
     "body": "FLValue ufl_math_sign(FLValue v) {\n    double d = (v.tag == FL_INT) ? (double)v.i : v.f;\n    if (d > 0) return fl_int(1);\n    if (d < 0) return fl_int(-1);\n    return fl_int(0);\n}",
     "bodyHash": "sha256:a8e597c60c7b42c2",
     "test": "(println (math-sign 42))\n(println (math-sign -7))\n(println (math-sign 0))",
@@ -114,17 +114,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5561,
-      "ts": "2026-06-20T19:50:25.397Z"
+      "durationMs": 5965,
+      "ts": "2026-06-21T11:24:59.316Z"
     },
-    "buildCount": 4
+    "buildCount": 5
   },
   "path-basename": {
     "name": "path-basename",
     "version": "0.1.0",
     "args": 1,
     "added": "2026-06-20T19:35:04.134Z",
-    "updated": "2026-06-20T20:03:00.052Z",
+    "updated": "2026-06-21T11:41:55.482Z",
     "body": "FLValue ufl_path_basename(FLValue p) {\n    if (p.tag != FL_STRING) return p;\n    const char* src = ((FLString*)p.obj)->data;\n    const char* last = strrchr(src, '/');\n    const char* result = last ? last + 1 : src;\n    return fl_str_val(result);\n}",
     "bodyHash": "sha256:8a5a3cc430017706",
     "test": "(println (path-basename \"/home/user/docs/file.txt\"))\n(println (path-basename \"readme.md\"))",
@@ -134,17 +134,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5105,
-      "ts": "2026-06-20T20:03:05.171Z"
+      "durationMs": 6123,
+      "ts": "2026-06-21T11:42:01.616Z"
     },
-    "buildCount": 10
+    "buildCount": 12
   },
   "path-dirname": {
     "name": "path-dirname",
     "version": "0.1.0",
     "args": 1,
     "added": "2026-06-20T19:35:09.664Z",
-    "updated": "2026-06-20T19:50:41.565Z",
+    "updated": "2026-06-21T11:25:17.029Z",
     "body": "FLValue ufl_path_dirname(FLValue p) {\n    if (p.tag != FL_STRING) return p;\n    const char* src = ((FLString*)p.obj)->data;\n    const char* last = strrchr(src, '/');\n    if (!last) return fl_str_val(\".\");\n    size_t len = last - src;\n    if (len == 0) return fl_str_val(\"/\");\n    char* buf = (char*)fl_arena_alloc(len + 1);\n    memcpy(buf, src, len);\n    buf[len] = 0;\n    return fl_str_val(buf);\n}",
     "bodyHash": "sha256:d863c5ed9a825ad7",
     "test": "(println (path-dirname \"/home/user/docs/file.txt\"))\n(println (path-dirname \"readme.md\"))",
@@ -154,17 +154,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5042,
-      "ts": "2026-06-20T19:50:46.620Z"
+      "durationMs": 5764,
+      "ts": "2026-06-21T11:25:22.806Z"
     },
-    "buildCount": 4
+    "buildCount": 5
   },
   "str-rpad": {
     "name": "str-rpad",
     "version": "0.1.0",
     "args": 3,
     "added": "2026-06-20T19:36:53.985Z",
-    "updated": "2026-06-20T20:02:38.803Z",
+    "updated": "2026-06-21T11:41:30.591Z",
     "body": "FLValue ufl_str_rpad(FLValue s, FLValue n, FLValue ch) {\n    if (s.tag != FL_STRING || n.tag != FL_INT) return s;\n    const char* src = ((FLString*)s.obj)->data;\n    size_t slen = strlen(src);\n    int64_t total = n.i < 0 ? 0 : n.i;\n    if ((int64_t)slen >= total) return s;\n    char pad = (ch.tag == FL_STRING && ((FLString*)ch.obj)->data[0]) ? ((FLString*)ch.obj)->data[0] : 32;\n    char* buf = (char*)fl_arena_alloc(total + 1);\n    if (!buf) return s;\n    memcpy(buf, src, slen);\n    memset(buf + slen, pad, total - slen);\n    buf[total] = 0;\n    return fl_str_val(buf);\n}",
     "bodyHash": "sha256:ad81bbc28e462dc3",
     "test": "(println (str-pad-right \"hi\" 10 \" \"))\n(println (str-pad-right \"hello\" 3 \" \"))",
@@ -174,17 +174,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5248,
-      "ts": "2026-06-20T20:02:44.061Z"
+      "durationMs": 6341,
+      "ts": "2026-06-21T11:41:36.943Z"
     },
-    "buildCount": 9
+    "buildCount": 11
   },
   "math-round-n": {
     "name": "math-round-n",
     "version": "0.1.0",
     "args": 2,
     "added": "2026-06-20T19:37:10.846Z",
-    "updated": "2026-06-20T19:50:14.383Z",
+    "updated": "2026-06-21T11:24:47.516Z",
     "body": "#include <math.h>\nFLValue ufl_math_round_n(FLValue v, FLValue n) {\n    double dv = (v.tag == FL_INT) ? (double)v.i : v.f;\n    int64_t places = (n.tag == FL_INT) ? n.i : 0;\n    if (places < 0) places = 0;\n    double factor = pow(10.0, (double)places);\n    return fl_float(round(dv * factor) / factor);\n}",
     "bodyHash": "sha256:990f0f3c5359740c",
     "test": "(println (math-round-n 3.14159 2))\n(println (math-round-n 2.5 0))",
@@ -194,17 +194,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5421,
-      "ts": "2026-06-20T19:50:19.816Z"
+      "durationMs": 5806,
+      "ts": "2026-06-21T11:24:53.335Z"
     },
-    "buildCount": 3
+    "buildCount": 4
   },
   "time-now-ms": {
     "name": "time-now-ms",
     "version": "0.1.0",
     "args": 1,
     "added": "2026-06-20T19:37:22.152Z",
-    "updated": "2026-06-20T20:02:49.341Z",
+    "updated": "2026-06-21T11:41:43.094Z",
     "body": "#include <time.h>\nFLValue ufl_time_now_ms(void) {\n    struct timespec ts;\n    clock_gettime(CLOCK_REALTIME, &ts);\n    return fl_int((int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);\n}",
     "bodyHash": "sha256:c1464ef4cdd69001",
     "test": "(let [$t1 (time-now-ms)]\n  (println (> $t1 0)))",
@@ -214,17 +214,17 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5344,
-      "ts": "2026-06-20T20:02:54.695Z"
+      "durationMs": 6289,
+      "ts": "2026-06-21T11:41:49.394Z"
     },
-    "buildCount": 9
+    "buildCount": 11
   },
   "time-elapsed": {
     "name": "time-elapsed",
     "version": "0.1.0",
     "args": 1,
     "added": "2026-06-20T19:37:27.942Z",
-    "updated": "2026-06-20T20:02:54.703Z",
+    "updated": "2026-06-21T11:41:49.398Z",
     "body": "#include <time.h>\nFLValue ufl_time_elapsed(FLValue start) {\n    struct timespec ts;\n    clock_gettime(CLOCK_REALTIME, &ts);\n    int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;\n    int64_t s   = (start.tag == FL_INT) ? start.i : (int64_t)start.f;\n    return fl_int(now - s);\n}",
     "bodyHash": "sha256:7ba9bcd2fce4514e",
     "test": "(let [$t0 (time-now-ms)]\n  (println (>= (time-elapsed $t0) 0)))",
@@ -234,10 +234,10 @@
     ],
     "lastBuild": {
       "status": "ok",
-      "durationMs": 5333,
-      "ts": "2026-06-20T20:03:00.049Z"
+      "durationMs": 6066,
+      "ts": "2026-06-21T11:41:55.476Z"
     },
-    "buildCount": 9
+    "buildCount": 11
   },
   "str-lines": {
     "name": "str-lines",

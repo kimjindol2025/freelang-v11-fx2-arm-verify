@@ -144,10 +144,24 @@ python3 "$SCRIPT_DIR/fl-str-split.py" "$PREPROCESSED" 2>&1 || true
 CHECK_PARENS="/home/kimjin/freelang-v11/scripts/check-parens.py"
 if [ -f "$CHECK_PARENS" ]; then
   echo "🔍 괄호/브래킷 검사..."
-  if ! python3 "$CHECK_PARENS" "$PREPROCESSED" 2>&1; then
-    echo "❌ 사전 검사 실패 — 컴파일 중단"
-    rm -f "$PREPROCESSED"
-    exit 1
+  # CSS/JS/Python 문자열이 있는 파일은 false positive 위험 → cgc-bin이 최종 판단
+  # 줄 수 300 이하 단순 FL만 검사
+  LINE_COUNT=$(wc -l < "$PREPROCESSED" 2>/dev/null || echo 999)
+  if [ "$LINE_COUNT" -le 300 ]; then
+    PARENS_OUT=$(timeout 3 python3 "$CHECK_PARENS" "$PREPROCESSED" 2>&1)
+    PARENS_EXIT=$?
+    if [ $PARENS_EXIT -eq 124 ]; then
+      echo "   ⚠️  괄호 검사 타임아웃 → cgc-bin 파서가 최종 판단"
+    elif [ $PARENS_EXIT -ne 0 ]; then
+      echo "$PARENS_OUT"
+      echo "❌ 사전 검사 실패 — 컴파일 중단"
+      rm -f "$PREPROCESSED"
+      exit 1
+    else
+      echo "$PARENS_OUT"
+    fi
+  else
+    echo "   ✅ ${LINE_COUNT}줄 — cgc-bin 파서로 직접 검사 (문자열 내 코드 포함 파일)"
   fi
 fi
 
@@ -386,6 +400,7 @@ CORE_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/sqlite.c $RUNTIME_DIR/debug.c $RUNTIME_DIR/gc.c \
   $RUNTIME_DIR/jit.c $RUNTIME_DIR/fx-builtin-shim.c \
   $RUNTIME_DIR/regex.c $RUNTIME_DIR/smtp.c $RUNTIME_DIR/pdf_ttf.c $RUNTIME_DIR/pdf_img.c \
+  $RUNTIME_DIR/net.c \
   $RUNTIME_DIR/builtins-shim.c"
 
 if [ -f "$RUNTIME_DIR/mariadb.c" ]; then

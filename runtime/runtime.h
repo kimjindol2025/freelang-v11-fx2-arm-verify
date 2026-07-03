@@ -573,6 +573,21 @@ static inline FLValue __fl_op_gt_w (FLClosure* _s, int _ac, FLValue* a) { (void)
 static inline FLValue __fl_op_lte_w(FLClosure* _s, int _ac, FLValue* a) { (void)_s;(void)_ac; return fl_lte(a[0], a[1]); }
 static inline FLValue __fl_op_gte_w(FLClosure* _s, int _ac, FLValue* a) { (void)_s;(void)_ac; return fl_gte(a[0], a[1]); }
 
+/* ── Raw TCP 소켓 (net.c) ── */
+FLValue fxb_net_listen(FLValue port);
+FLValue fxb_net_accept(FLValue server_fd);
+FLValue fxb_net_readline(FLValue fd);
+FLValue fxb_net_read_bytes(FLValue fd, FLValue n);
+FLValue fxb_net_write(FLValue fd, FLValue str);
+FLValue fxb_net_writeline(FLValue fd, FLValue str);
+FLValue fxb_net_close(FLValue fd);
+FLValue fxb_net_pasv_open(void);
+FLValue fxb_net_pasv_accept(FLValue pasv_fd);
+FLValue fxb_net_connect(FLValue host, FLValue port);
+FLValue fxb_net_send_file(FLValue fd, FLValue path);
+FLValue fxb_net_recv_file(FLValue fd, FLValue path);
+FLValue fxb_net_local_ip(void);
+
 #endif /* FREELANG_RUNTIME_H */
 
 /* ── 정규식 (aliases.c) ── */
@@ -691,17 +706,17 @@ FLValue pdf_img_load(FLValue path);
 FLValue pdf_img_obj(FLValue img, FLValue obj_id);
 
 /* FL:EXTERN_SECTION:BEGIN */
-FLValue str_indent(FLValue a0, FLValue a1);
-FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
-FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
-FLValue str_count(FLValue a0, FLValue a1);
 FLValue str_lines(FLValue a0);
-FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_count(FLValue a0, FLValue a1);
 FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2);
 FLValue math_round_n(FLValue a0, FLValue a1);
 FLValue math_sign(FLValue a0);
+FLValue path_dirname(FLValue a0);
+FLValue str_indent(FLValue a0, FLValue a1);
+FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
+FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
+FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
 FLValue time_now_ms(void);
 FLValue time_elapsed(FLValue a0);
 FLValue path_basename(FLValue a0);
-FLValue path_dirname(FLValue a0);
 /* FL:EXTERN_SECTION:END */

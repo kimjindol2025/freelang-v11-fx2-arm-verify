@@ -476,6 +476,36 @@ static FLValue make_req_map(HttpRequest* hr, FLValue params) {
         }
     }
 
+    /* 쿠키 파싱 — Cookie: key1=val1; key2=val2 → 맵 */
+    FLValue cookies = fl_map_new();
+    {
+        const char* cookie_hdr = NULL;
+        for (int i = 0; i < hr->nheaders; i++) {
+            if (strcasecmp(hr->headers[i][0], "cookie") == 0) {
+                cookie_hdr = hr->headers[i][1]; break;
+            }
+        }
+        if (cookie_hdr) {
+            char* buf = strdup(cookie_hdr);
+            char* tok = strtok(buf, ";");
+            while (tok) {
+                while (*tok == ' ') tok++;  /* 앞 공백 제거 */
+                char* eq = strchr(tok, '=');
+                if (eq) {
+                    *eq = '\0';
+                    char* k = tok;
+                    char* v = eq + 1;
+                    /* 끝 공백 제거 */
+                    size_t klen = strlen(k);
+                    while (klen > 0 && k[klen-1] == ' ') k[--klen] = '\0';
+                    cookies = fl_map_set(cookies, fl_str_val(k), fl_str_val(v));
+                }
+                tok = strtok(NULL, ";");
+            }
+            free(buf);
+        }
+    }
+
     FLValue req = fl_map_new();
     req = fl_map_set(req, fl_str_val("method"),  fl_str_val(hr->method));
     req = fl_map_set(req, fl_str_val("path"),    fl_str_val(hr->path));
@@ -483,6 +513,7 @@ static FLValue make_req_map(HttpRequest* hr, FLValue params) {
     req = fl_map_set(req, fl_str_val("params"),  params);
     req = fl_map_set(req, fl_str_val("headers"), headers);
     req = fl_map_set(req, fl_str_val("body"),    body);
+    req = fl_map_set(req, fl_str_val("cookies"), cookies);
     return req;
 }
 
@@ -1060,7 +1091,14 @@ FLValue fl_http_start(FLValue port) { return server_start(port); }
 
 /* ── fl_resp_* alias — kebab-case response 함수 ── */
 FLValue fl_resp_html(FLValue html)              { return server_html(html); }
-FLValue fl_resp_json(FLValue json)              { return server_json(json); }
+FLValue fl_resp_json(FLValue data) {
+    /* 맵/벡터이면 자동 json_stringify 후 전달 */
+    if (data.tag == FL_MAP || data.tag == FL_VECTOR) {
+        FLValue json = json_stringify(data);
+        return server_json(json);
+    }
+    return server_json(data);
+}
 FLValue fl_resp_text(FLValue text)              { return server_text(text); }
 FLValue fl_resp_status(FLValue code, FLValue b) { return server_status(code, b); }
 FLValue fl_resp_redirect(FLValue url)           { return server_redirect(url); }
