@@ -36,10 +36,31 @@ The conformance matrix is anchored to `spec/conformance.fl` and checks:
 
 - `range` single-argument handling is not the standard path.
 - `str-includes` boolean behavior is enforced by verification rules.
-- closure capture remains limited and is managed as a documented limitation.
+- `try`/`catch` is not part of the fx2 conformance surface.
 - anything not covered by conformance or spec is not complete yet.
 
 ## Verification commands
 
 - `bash tools/fl-verify.sh conformance`
 - `bash tools/fl-verify.sh official spec/conformance.fl`
+
+## Completion Declaration
+
+Declared complete on 2026-07-04 after the release gate was rechecked on the
+kimjin x86_64 node.
+
+Evidence:
+
+- `tools/fl-verify.sh official spec/conformance.fl` passed.
+- `tools/fl-verify.sh conformance` passed.
+- `spec/conformance.fl` built and ran with `== FX2 CONFORMANCE PASS ==`.
+- `spec/conformance.fl --no-net` built and ran with `== FX2 CONFORMANCE PASS ==`.
+- `tools/test-app-o-failure.sh` passed.
+- `ssr-app/app.fl` and `search-app/app.fl` built with the rebuilt native
+  `/home/kimjin/freelang-v11/bin/cgc-bin`.
+- `/home/kimjin/freelang-v11/scripts/test-l2-fixpoint.sh` reached `L2 = L3`.
+- Patch #5 first-class operator repros, including nested lambda operator
+  value references for `<`, `<=`, `>`, `>=`, `=`, `!=`, `%`, and `/`, built and
+  ran successfully.
+
+Completion declaration commit: the commit containing this section.
