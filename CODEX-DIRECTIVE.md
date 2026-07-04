@@ -369,6 +369,10 @@ Result 타입 적용)을 빌드+실행해서 정상 동작 확인 → fl-common�
 - [x] P2 완료: fl-common/fx2.fl 통째로 load하는 실제 프로그램 빌드+실행 성공 → fl-common push
 - [x] `tools/fl-verify.sh official spec/conformance.fl` 최종 통과
 - [x] ssr-app / search-app E2E 재확인 (패치로 인한 회귀 없음)
-- [ ] 각 단계 Gogs 커밋 + 블로그(blog.dclub.kr) 기록
-- [ ] 위 전항 통과 시 — `docs/CONFORMANCE.md`에 "완성 선언 커밋" 명시하고
+- [x] 각 단계 Gogs 커밋 + 블로그(blog.dclub.kr) 기록
+      - `freelang-v11`: `f31f4ece` (`fix: complete first-class operator native rebuild`)
+      - `freelang-v11-fx2`: `862e311` (`docs: declare fx2 completion gates passed`)
+      - `fl-common`: `2d074db` (`fix(fx2.fl): fx2 런타임 실기 검증 반영 — 이름 충돌/미지원 기능 정리`)
+      - 블로그 기록: `/home/kimjin/kim/Desktop/kim/blog-posts/2026-07-04-fx2-completion-gates.md`
+- [x] 위 전항 통과 시 — `docs/CONFORMANCE.md`에 "완성 선언 커밋" 명시하고
       해당 커밋 SHA를 블로그에 남긴다
