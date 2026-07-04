@@ -9,6 +9,13 @@
 (defn _line-has-any [$lines $needles]
   (some (fn [$n] (_line-has $lines $n)) $needles))
 
+(defn _line-starts-with [$lines $prefix]
+  (some (fn [$l] (str-starts-with (str-trim $l) $prefix)) $lines))
+
+(defn _line-has-try-form [$lines]
+  (or (_line-starts-with $lines "(try")
+      (_line-has $lines " (try")))
+
 ;; 금지: range 단인자
 (check-error
   "range 단인자 금지"
@@ -26,6 +33,22 @@
       "do not compare str-includes with 1"
       nil)))
 
+;; 금지: server-json에 맵 리터럴 직접 전달
+(check-error
+  "server-json 맵 직접전달 금지"
+  (fn [$src $lines]
+    (if (_line-has $lines "(server-json {")
+      "server-json does not accept a map literal directly and silently returns an empty body. Use fx-server-json instead: (fx-server-json {...})"
+      nil)))
+
+;; 경고: server-json에 변수 직접 전달
+(check-warn
+  "server-json 변수 직접전달 확인"
+  (fn [$src $lines]
+    (if (_line-has $lines "(server-json $")
+      "server-json expects an already stringified JSON string. If the value is a map/vector, use fx-server-json or json-stringify first."
+      nil)))
+
 ;; 금지: 언더스코어 표준 함수명
 (check-error
   "케밥케이스 함수명"
@@ -38,6 +61,14 @@
       "underscore function names are forbidden"
       nil)))
 
+;; 금지: try/catch
+(check-error
+  "try/catch 미지원"
+  (fn [$src $lines]
+    (if (_line-has-try-form $lines)
+      "try/catch is not supported in fx2. Wrap fallible logic in a function returning Result-style maps like {\"ok\" true \"value\" ...} / {\"ok\" false \"error\" ...} instead; use result-ok?/result-err? from fl-common/fx2.fl."
+      nil)))
+
 ;; 경고: 클로저 캡처는 현재 제약
 (check-warn
   "outer let 캡처"
@@ -45,4 +76,3 @@
     (if (_line-has $lines "(fn [")
       "fn closure capture is limited; prefer atom/parameter passing"
       nil)))
-
