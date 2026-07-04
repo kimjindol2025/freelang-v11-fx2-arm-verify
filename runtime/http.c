@@ -161,6 +161,44 @@ FLValue server_html(FLValue html) {
     return make_response(200, "text/html; charset=utf-8", strval(html));
 }
 
+/* 확장자 → MIME */
+static const char* mime_of(const char* path) {
+    const char* e = strrchr(path, '.');
+    if (!e) return "application/octet-stream";
+    if (!strcasecmp(e,".png"))  return "image/png";
+    if (!strcasecmp(e,".jpg")||!strcasecmp(e,".jpeg")) return "image/jpeg";
+    if (!strcasecmp(e,".gif"))  return "image/gif";
+    if (!strcasecmp(e,".webp")) return "image/webp";
+    if (!strcasecmp(e,".svg"))  return "image/svg+xml";
+    if (!strcasecmp(e,".ico"))  return "image/x-icon";
+    if (!strcasecmp(e,".css"))  return "text/css; charset=utf-8";
+    if (!strcasecmp(e,".js"))   return "application/javascript";
+    if (!strcasecmp(e,".pdf"))  return "application/pdf";
+    return "application/octet-stream";
+}
+
+/* server-file: 파일을 바이너리로 읽어 확장자별 Content-Type으로 서빙 */
+FLValue server_file(FLValue path_v) {
+    const char* path = strval(path_v);
+    FILE* f = fopen(path, "rb");
+    if (!f) return make_response(404, "application/json; charset=utf-8", "{\"error\":\"not found\"}");
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz < 0) { fclose(f); return make_response(500, "application/json; charset=utf-8", "{\"error\":\"read\"}"); }
+    char* buf = (char*)malloc(sz > 0 ? sz : 1);
+    size_t rd = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    FLValue headers = fl_map_new();
+    headers = fl_map_set(headers, fl_str_val("Content-Type"), fl_str_val(mime_of(path)));
+    FLValue resp = fl_map_new();
+    resp = fl_map_set(resp, fl_str_val(K_STATUS),  fl_int(200));
+    resp = fl_map_set(resp, fl_str_val(K_BODY),    fl_str_val_n(buf, (uint32_t)rd));
+    resp = fl_map_set(resp, fl_str_val(K_HEADERS), headers);
+    free(buf);
+    return resp;
+}
+
 FLValue server_text(FLValue text) {
     return make_response(200, "text/plain; charset=utf-8", strval(text));
 }
@@ -392,6 +430,7 @@ static const char* status_text(int code) {
 static void send_response(int client_fd, FLValue resp, int keep_alive) {
     int    status  = 200;
     const char* body    = "";
+    uint32_t body_len   = 0;   /* FLString len (바이너리 안전) */
     const char* ctype   = "text/plain";
     char   extra_headers[2048] = "";
 
@@ -400,7 +439,7 @@ static void send_response(int client_fd, FLValue resp, int keep_alive) {
         if (sv.tag == FL_INT) status = (int)sv.i;
 
         FLValue bv = fl_map_get(resp, fl_str_val(K_BODY));
-        if (bv.tag == FL_STRING) body = strval(bv);
+        if (bv.tag == FL_STRING) { body = strval(bv); body_len = ((FLString*)bv.obj)->len; }
 
         FLValue hv = fl_map_get(resp, fl_str_val(K_HEADERS));
         if (hv.tag == FL_MAP) {
@@ -419,10 +458,11 @@ static void send_response(int client_fd, FLValue resp, int keep_alive) {
         }
     } else if (resp.tag == FL_STRING) {
         body  = strval(resp);
+        body_len = ((FLString*)resp.obj)->len;
         ctype = "text/html; charset=utf-8";
     }
 
-    size_t blen = strlen(body);
+    size_t blen = body_len;   /* FLString len 사용 (null 바이트 포함 바이너리 안전) */
     char header_buf[4096];
     snprintf(header_buf, sizeof(header_buf),
         "HTTP/1.1 %d %s\r\n"

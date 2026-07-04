@@ -92,6 +92,7 @@ typedef struct {
 FLValue fl_int(int64_t v);
 FLValue fl_float(double v);
 FLValue fl_str_val(const char* s);
+FLValue fl_str_val_n(const char* data, uint32_t len);
 FLValue fl_bool(bool v);
 FLValue fl_nil(void);
 
@@ -357,6 +358,7 @@ FLValue server_put(FLValue path, FLValue handler);
 FLValue server_patch(FLValue path, FLValue handler);
 FLValue server_delete(FLValue path, FLValue handler);
 FLValue server_html(FLValue html);
+FLValue server_file(FLValue path);
 FLValue server_text(FLValue text);
 FLValue server_json(FLValue json_str);
 FLValue server_status(FLValue code, FLValue body);

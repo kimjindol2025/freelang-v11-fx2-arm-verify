@@ -40,6 +40,19 @@ FLValue fl_str_val(const char* s) {
     FLValue r; r.tag = FL_STRING; r.obj = (FLObject*)obj; return r;
 }
 
+/* 바이너리 안전 문자열 생성 (len 바이트 그대로, null 바이트 포함 가능) */
+FLValue fl_str_val_n(const char* data, uint32_t len) {
+    size_t total = sizeof(FLString) + len + 1;
+    FLString* obj = (FLString*)fl_arena_alloc(total);
+    if (!obj) obj = malloc(total);
+    obj->base.type = FL_STRING;
+    obj->base.rc = 1;
+    obj->len = len;
+    memcpy(obj->data, data, len);
+    obj->data[len] = '\0';
+    FLValue r; r.tag = FL_STRING; r.obj = (FLObject*)obj; return r;
+}
+
 FLValue fl_bool(bool v) {
     FLValue r; r.tag = FL_BOOL; r.b = v; return r;
 }
