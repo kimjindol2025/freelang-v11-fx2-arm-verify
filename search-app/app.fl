@@ -220,10 +220,10 @@
 (defn api-search [$req]
   (let [$q (req-query $req "q")
         $results (search-docs $q)]
-    (server-json {"ok" true
-                  "query" (if (nil? $q) "" $q)
-                  "count" (length $results)
-                  "results" $results})))
+    (fx-server-json {"ok" true
+                     "query" (if (nil? $q) "" $q)
+                     "count" (length $results)
+                     "results" $results})))
 
 (defn req-query [$req $name]
   (get (get $req "query") $name))
