@@ -1,0 +1,23 @@
+;; fx2 템플릿 — 정적 페이지 서빙 (SSR 없이 단일 HTML)
+;;
+;; fx2에는 디렉토리 전체를 마운트하는 함수(server-static 같은 것)가 없다
+;; (v11 FL-Front의 server_static과 헷갈리지 말 것 — fx2엔 없음, 오늘 직접
+;; 확인됨). 파일 하나씩 server-file로 서빙한다.
+;;
+;; 사용법: 이 파일을 새 프로젝트 폴더로 복사, public/index.html을 원하는
+;; 페이지로 교체. JS/CSS도 쓰려면 이 파일에 라우트를 하나씩 추가할 것
+;; (아래 handle-index 패턴 그대로 복사해서 경로/파일만 바꾸면 됨).
+
+(define SERVER_PORT 40998)  ;; 반드시 실제 포트로 바꿀 것
+
+(defn handle-index [$req]
+  (server-file "public/index.html"))
+
+(server-get "/" "handle-index")
+
+;; 추가 정적 파일이 필요하면 이렇게 하나씩:
+;; (defn handle-appjs [$req] (server-file "public/app.js"))
+;; (server-get "/app.js" "handle-appjs")
+
+(println (str "fx2 정적 페이지 템플릿 — http://localhost:" SERVER_PORT))
+(server-start SERVER_PORT)

@@ -174,6 +174,10 @@ static const char* mime_of(const char* path) {
     if (!strcasecmp(e,".css"))  return "text/css; charset=utf-8";
     if (!strcasecmp(e,".js"))   return "application/javascript";
     if (!strcasecmp(e,".pdf"))  return "application/pdf";
+    if (!strcasecmp(e,".html")||!strcasecmp(e,".htm")) return "text/html; charset=utf-8";
+    if (!strcasecmp(e,".json")) return "application/json; charset=utf-8";
+    if (!strcasecmp(e,".txt"))  return "text/plain; charset=utf-8";
+    if (!strcasecmp(e,".xml"))  return "application/xml; charset=utf-8";
     return "application/octet-stream";
 }
 

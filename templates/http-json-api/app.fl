@@ -1,0 +1,68 @@
+;; fx2 템플릿 — HTTP + SQLite + JSON API
+;;
+;; 이 템플릿은 오늘(2026-07-04) fx2로 실제 만들어서 검증한 여러 앱
+;; (ssr-app, search-app, URL단축기, 명령판/gajae-desk)에서 뽑아낸
+;; "안전하게 확인된 패턴"만 담았다. 새 앱은 이 파일을 복사해서 시작할 것.
+;;
+;; 사용법: 이 파일을 새 프로젝트 폴더로 복사 → PORT/DB_PATH/라우트만 바꾸면 됨
+;; 빌드: bash /home/kimjin/freelang-v11-fx2/fl-build.sh app.fl <output-bin>
+;;
+;; templates/PITFALLS.md에 여기 안 쓴 함정들 더 정리돼 있음 — 새 코드 짜기 전에 읽을 것.
+
+(define SERVER_PORT 40999)  ;; 반드시 실제 포트로 바꿀 것 (40100-43000, lsof -i로 점유 확인 먼저)
+(define DB_PATH "./app.sqlite")
+(define DB (fxb-sqlite-open DB_PATH))
+
+;; ── Result 타입 (fl-common/fx2.fl과 동일한 패턴, 여기 직접 포함) ──────────
+;; 주의: ok?/err? 는 쓰지 말 것 — runtime 내장 ok_p(HTTP 상태체크용)와
+;; 심볼 충돌해서 "multiple definition" 링크 에러 남. 반드시 result-ok?/result-err?.
+(defn ok [$v]    {"ok" true  "value" $v})
+(defn err [$msg] {"ok" false "error" $msg})
+(defn result-ok?  [$r] (= (get $r "ok") true))
+(defn result-err? [$r] (not (= (get $r "ok") true)))
+
+(defn text-or [$v $fallback]
+  (if (nil? $v) $fallback $v))
+
+;; ── 스키마 ──────────────────────────────────────────────────────────────
+(defn ensure-schema! []
+  (fxb-sqlite-exec-p DB
+    "CREATE TABLE IF NOT EXISTS items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )"
+    (list)))
+
+;; ── DB 헬퍼 (fxb-sqlite-* 가 실제 함수명 — sqlite_query/sqlite_exec 아님) ──
+(defn list-items []
+  (fxb-sqlite-query-p DB "SELECT id, name, created_at FROM items ORDER BY id DESC" (list)))
+
+(defn create-item! [$name]
+  (let [$now (time-now-ms)]
+    (fxb-sqlite-exec-p DB
+      "INSERT INTO items (name, created_at) VALUES (?, ?)"
+      (list $name $now))
+    (ok {"name" $name "created_at" $now})))
+
+;; ── 라우트 핸들러 ──────────────────────────────────────────────────────
+;; JSON 응답: server-json에 맵/벡터를 직접 넘겨도 안전하다 (2026-07-04부터,
+;; runtime/http.c가 자동 json_stringify). fx-server-json은 하위호환용으로
+;; 계속 써도 되고 안 써도 된다 — 새 코드는 server-json만 써도 충분.
+(defn handle-list [$req]
+  (server-json {"ok" true "items" (list-items)}))
+
+(defn handle-create [$req]
+  (let [$body (get $req "body")
+        $name (str-trim (text-or (get $body "name") ""))]
+    (if (= $name "")
+      (server-status 400 (json-stringify {"ok" false "error" "name is required"}))
+      (server-json (create-item! $name)))))
+
+;; ── 라우트 등록 ────────────────────────────────────────────────────────
+(ensure-schema!)
+(server-get  "/api/items"  "handle-list")
+(server-post "/api/items"  "handle-create")
+
+(println (str "fx2 HTTP+SQLite+JSON API 템플릿 — http://localhost:" SERVER_PORT))
+(server-start SERVER_PORT)
