@@ -203,7 +203,10 @@ FLValue server_text(FLValue text) {
     return make_response(200, "text/plain; charset=utf-8", strval(text));
 }
 
-FLValue server_json(FLValue json_str) {
+FLValue server_json(FLValue data) {
+    FLValue json_str = (data.tag == FL_MAP || data.tag == FL_VECTOR)
+        ? json_stringify(data)
+        : data;
     return make_response(200, "application/json; charset=utf-8", strval(json_str));
 }
 
@@ -462,7 +465,9 @@ static void send_response(int client_fd, FLValue resp, int keep_alive) {
         ctype = "text/html; charset=utf-8";
     }
 
-    size_t blen = body_len;   /* FLString len 사용 (null 바이트 포함 바이너리 안전) */
+    /* 텍스트는 strlen, 바이너리(null 포함)는 FLString len — 둘 중 큰 값 */
+    size_t blen = strlen(body);
+    if (body_len > blen) blen = body_len;
     char header_buf[4096];
     snprintf(header_buf, sizeof(header_buf),
         "HTTP/1.1 %d %s\r\n"
