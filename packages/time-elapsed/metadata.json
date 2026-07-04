@@ -1,0 +1,9 @@
+{
+  "name": "time-elapsed",
+  "version": "1.0.0",
+  "args": 1,
+  "tags": ["time", "system"],
+  "description": "시작 ms 기준 경과 시간(ms) 반환 (time-elapsed start-ms)",
+  "body": "#include <time.h>\nFLValue ufl_time_elapsed(FLValue start) {\n    struct timespec ts;\n    clock_gettime(CLOCK_REALTIME, &ts);\n    int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;\n    int64_t s   = (start.tag == FL_INT) ? start.i : (int64_t)start.f;\n    return fl_int(now - s);\n}",
+  "test": "(let [$t0 (time-now-ms)]\n  (println (>= (time-elapsed $t0) 0)))"
+}

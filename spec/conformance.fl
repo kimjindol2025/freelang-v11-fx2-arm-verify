@@ -1,0 +1,68 @@
+;; FreeLang fx2 conformance smoke test
+;; 실행 예시:
+;;   cd /root/freelang-v11-fx2/spec
+;;   bash ../fl-run.sh build
+
+(define _FAILS (atom 0))
+
+(defn expect [$name $actual $expected]
+  (if (= $actual $expected)
+    (println (str "PASS " $name))
+    (do
+      (println (str "FAIL " $name " expected=" $expected " actual=" $actual))
+      (reset! _FAILS (+ (deref _FAILS) 1)))))
+
+(defn expect-true [$name $actual]
+  (expect $name $actual true))
+
+(defn expect-false [$name $actual]
+  (expect $name $actual false))
+
+(println "== fx2 conformance ==")
+
+;; core truthiness
+(expect-false "nil false" (if nil true false))
+(expect-false "zero false" (if 0 true false))
+(expect-true  "one true"   (if 1 true false))
+
+;; define / let / if
+(define $base 10)
+(let [$x 2
+      $y 3]
+  (expect "let math" (+ $x $y) 5))
+(expect "define visible" (+ $base 1) 11)
+
+;; fn / apply
+(define $sum5 (fn [$a $b $c $d $e] (+ $a $b $c $d $e)))
+(expect "apply sum5" (apply $sum5 (list 1 2 3 4 5)) 15)
+
+;; collections
+(expect "list length" (length (list 1 2 3)) 3)
+(expect "map get" (get {"a" 1 "b" 2} "b") 2)
+
+;; strings
+(expect "str concat" (str "fx" 2) "fx2")
+(expect "str-count" (str-count "hello world hello" "hello") 2)
+(expect "str-truncate" (str-truncate "hello world" 5 "...") "he...")
+(expect "str-rpad" (str-rpad "hi" 4 ".") "hi..")
+(expect "str-lines" (length (str-lines "a\nb\nc")) 3)
+
+;; math
+(expect "math-clamp" (math-clamp 15 0 10) 10)
+(expect "math-lerp" (math-lerp 0 10 0.5) 5)
+(expect "math-round-n" (math-round-n 3.14159 2) 3.14)
+(expect "math-sign" (math-sign -42) -1)
+
+;; time/path
+(let [$t0 (time-now-ms)]
+  (expect-true "time-now-ms positive" (> $t0 0))
+  (expect-true "time-elapsed nonnegative" (>= (time-elapsed $t0) 0)))
+
+(expect "path-basename" (path-basename "/a/b/c.fl") "c.fl")
+(expect "path-dirname"  (path-dirname "/a/b/c.fl") "/a/b")
+
+(if (= (deref _FAILS) 0)
+  (println "== FX2 CONFORMANCE PASS ==")
+  (do
+    (println (str "== FX2 CONFORMANCE FAIL: " (deref _FAILS) " =="))
+    (process-exit 1)))

@@ -322,6 +322,7 @@ FLValue _fl_process_pid(void);
 FLValue _fl_process_ppid(void);
 FLValue _fl_process_kill(FLValue pid);
 FLValue _fl_process_exists(FLValue pid);
+FLValue _fl_process_exit(FLValue code);
 FLValue _fl_process_wait(FLValue pid);
 FLValue _fl_process_run(FLValue cmd);
 FLValue _fl_process_run_args(FLValue cmd, FLValue args);
@@ -329,6 +330,7 @@ FLValue _fl_run_inherit(FLValue cmd);
 FLValue _fl_process_exec(FLValue cmd);
 FLValue _fl_process_exec_args(FLValue cmd, FLValue args);
 FLValue _fl_process_spawn(FLValue cmd, FLValue args);
+FLValue process_exit(FLValue code);
 
 /* ── _fl_file_* / _fl_env_* / str_join ── */
 FLValue _fl_file_append(FLValue path, FLValue content);

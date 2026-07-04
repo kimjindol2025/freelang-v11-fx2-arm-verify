@@ -1,149 +1,147 @@
-;; AIRC — FreeLang fx2 Claude 인수인계 문서
-;; 갱신: 2026-06-21
-;; 목적: 다음 Claude가 fx2 작업 시 반드시 알아야 할 것들
+;; AIRC — FreeLang fx2 Claude Handoff
+;; Keep this file for stable facts and standing rules only.
 
 {
   "project": "freelang-v11-fx2",
-  "path": "/home/kimjin/freelang-v11-fx2",
-  "runtime_path": "/home/kimjin/freelang-v11/bin/cgc-bin",
-  "gogs": "gogs.dclub.kr/kim/freelang-v11-fx2",
-  "fixpoint_sha": "4b65157f",
-  "last_updated": "2026-06-21",
 
-  "build_command": {
-    "standard": "CGC_BIN=/home/kimjin/freelang-v11/bin/cgc-bin bash /home/kimjin/freelang-v11-fx2/fl-build.sh <input.fl> <output-bin>",
-    "shortcut": "fl build <input.fl> <output-bin>",
-    "verify_fixpoint": "bash /home/kimjin/freelang-v11-fx2/verify-fixpoint.sh"
-  },
-
-  "critical_rules": [
+  "core_facts": [
     {
-      "rule": "고정점 PASS 없이 커밋 금지",
-      "detail": "verify-fixpoint.sh → gen-b == gen-c SHA 일치 확인 후 커밋",
-      "blog": "#1229"
+      "grade": "MUST",
+      "rule": "Use the repo docs as the source of truth.",
+      "references": [
+        "docs/CANON.md",
+        "docs/SPEC.md",
+        "docs/WORKFLOW.md",
+        "docs/CONFORMANCE.md"
+      ]
     },
     {
-      "rule": "server_json은 1인자",
-      "detail": "fx2 server_json(json_str) — 상태코드 포함 불가. 오류 응답: (server-status 404 (json-stringify {...}))",
-      "blog": "#1384"
-    },
-    {
-      "rule": "fn은 클로저 아님",
-      "detail": "fn 내부에서 outer let 바인딩 접근 불가 → atom 우회 필수",
-      "example": "(define _VAL (atom nil)) ... $_ (reset! _VAL $outer) (map (fn [$x] (deref _VAL)) coll)",
-      "blog": "#1384"
-    },
-    {
-      "rule": "str-includes는 boolean",
-      "detail": "(= (str-includes ...) 1) 항상 false. 직접 truthy 사용: (str-includes $s sub)",
-      "blog": "#1384"
-    },
-    {
-      "rule": "fxb-sqlite-*-p 필수",
-      "detail": "외부 입력 포함 SQL은 반드시 fxb-sqlite-query-p / fxb-sqlite-exec-p 사용",
-      "blog": "#1274"
-    },
-    {
-      "rule": "케밥케이스 함수명",
-      "detail": "file_read X → file-read O. str_includes X → str-includes O",
-      "blog": "#1240"
-    },
-    {
-      "rule": "(range 0 n) 필수",
-      "detail": "(range n) 단인자 = 빈 배열. 반드시 (range 0 n) 사용",
-      "blog": "#1330"
+      "grade": "MUST",
+      "rule": "Commit only after fixpoint verification passes.",
+      "reference": "verify-fixpoint.sh"
     }
   ],
 
-  "v11_to_fx2_mapping": {
-    "{:type sqlite :path ...}":    "(fxb-sqlite-open path)",
-    "db-exec DB sql [p]":          "(fxb-sqlite-exec-p DB sql [p])",
-    "db-query DB sql [p]":         "(fxb-sqlite-query-p DB sql [p])",
-    "?? x default":                "(or-else x default)  ;; 직접 구현 필요",
-    "sha256_short x":              "(str-slice (sha256 x) 0 8)",
-    "regex_extract_all":           "str-split + filter + 직접 추출 함수",
-    "server-json {...} 404":       "(server-status 404 (json-stringify {...}))",
-    "json_merge m1 m2":            "(assoc m1 key val)",
-    "http_post url h b":           "(http-request \"POST\" url headers body-str)",
-    "number->string":              "(str $n)",
-    "fl_bool":                     "fl_int(0) / fl_int(1)"
-  },
-
-  "error_vaccine": {
-    "script": "/home/kimjin/freelang-v11-fx2/fl-error-vaccine.py",
-    "patterns": "/home/kimjin/freelang-v11-fx2/fl-error-patterns.json",
-    "count": 11,
-    "usage": "fl-error-vaccine.py <gcc-error.txt>",
-    "note": "새 에러 발견 시 patterns.json에 즉시 추가 후 git push"
-  },
-
-  "build_pipeline": [
-    "① 전처리 (load 인라인)",
-    "② 괄호 검사",
-    "③ 시맨틱 분석 (SQL ? 개수 + 인젝션 경고)",
-    "④ fx.rules 규칙 검사 (프로젝트별 커스텀)",
-    "⑤ FL → C (cgc-bin)",
-    "⑥ gcc -fsyntax-only 0.3초 타입 검사",
-    "⑦ app.o 캐시 + link → ELF"
-  ],
-
-  "apps": [
-    {"name": "fx-notify",    "port": 40300, "pm2_id": "fx-notify"},
-    {"name": "fx-monitor",   "port": 40301, "pm2_id": "fx-monitor"},
-    {"name": "fx-deploy",    "port": 40302, "pm2_id": "fx-deploy"},
-    {"name": "fx-cron",      "port": 40303, "pm2_id": "fx-cron"},
-    {"name": "fx-queue",     "port": 40297, "pm2_id": "fx-queue"},
-    {"name": "fx-world",     "port": 40296, "pm2_id": "fx-world"},
-    {"name": "fx-proxy",     "port": 40307, "pm2_id": "fx-proxy"},
-    {"name": "fx-search",    "port": 40308, "pm2_id": "fx-search"},
-    {"name": "dclub-tasks-fx","port": 40391,"pm2_id": "dclub-tasks-fx"},
-    {"name": "lore-fx",      "port": 40021, "pm2_id": "lore-fx"},
-    {"name": "graphy",       "port": 40327, "binary": "/home/kimjin/kim/Desktop/kim/01_Active_Projects/graphy/graphy-bin"}
-  ],
-
-  "debug_workflow": {
-    "when_build_fails": [
-      "1. fl-error-vaccine.py 실행 (GCC 에러 번역)",
-      "2. 직접 전처리: python3 fl-str-split.py <file.fl> > preprocessed.fl",
-      "3. cgc-bin preprocessed.fl out.c",
-      "4. gcc -fsyntax-only -I /home/kimjin/freelang-v11-fx2/runtime out.c 2>&1 | grep 'error:'",
-      "5. #line 디렉티브로 FL 원본 줄 추적"
-    ],
-    "when_fl_build_sh_fails": "fl-build.sh는 실패 시 SYNTAX_LOG + C_FILE + PREPROCESSED 자동 삭제. 위 4단계 수동 실행"
-  },
-
-  "common_silent_bugs": {
-    "http_get_double_parse": "http-get/http-post → 이미 파싱된 객체 반환. json-parse 재호출 금지",
-    "health_always_ok":      "/health 엔드포인트가 항상 healthy → fail-open. 실제 상태 집계 필수",
-    "str_includes_eq_1":     "(= (str-includes ...) 1) 항상 false — boolean vs int 혼동",
-    "range_single_arg":       "(range n) → 빈 배열. (range 0 n) 필수",
-    "fn_closure_capture":    "fn 내 outer let 변수 → C 스코프 밖 → atom 우회"
-  },
-
-  "recent_work": [
+  "language_constraints": [
     {
-      "date": "2026-06-21",
-      "what": "graphy.fl v11(398줄) → fx2(451줄) 마이그레이션",
-      "commits": ["50af846 (graphy)"],
-      "blog": "#1384"
+      "grade": "MUST",
+      "rule": "server-json takes one argument only.",
+      "note": "Use server-status for non-200 responses."
     },
     {
-      "date": "2026-06-21",
-      "what": "fault-injector 조용한 버그 3종 수정",
-      "commits": ["da27306 (aion-services)"],
-      "blog": "#1384"
+      "grade": "KNOWN LIMITATION",
+      "rule": "fn does not automatically capture outer let bindings.",
+      "note": "Use an atom or another explicit bridge when a closure-like capture is required."
     },
     {
-      "date": "2026-06-21",
-      "what": "fl-error-vaccine str-includes 수정 + closure-capture 패턴 추가",
-      "commits": ["dc8eb50 (freelang-v11-fx2)"],
-      "blog": "#1384"
+      "grade": "MUST",
+      "rule": "str-includes returns a boolean value.",
+      "note": "Do not compare it to 1."
+    },
+    {
+      "grade": "MUST",
+      "rule": "range needs an explicit start and end.",
+      "note": "Use (range 0 n), not (range n)."
     }
   ],
 
-  "next_tasks": [
-    "Lore fl_librarian 완료 확인 + synaptic-rag 인덱싱 (task t_1782038866900, 16h 남음 as of 06/21 19:48)",
-    "akl-monitor Chrome Extension (task t_1782038984525)",
-    "AKL SaaS Phase 1 organizations 테넌트 (task t_1782038984686)"
+  "runtime_constraints": [
+    {
+      "grade": "MUST",
+      "rule": "HTML output is caller-managed.",
+      "note": "Escape user-controlled content before passing it to server-html."
+    },
+    {
+      "grade": "MUST",
+      "rule": "JSON embedded in <script> must not contain a literal </script> terminator.",
+      "note": "Escape as <\/script> or \u003C/script> before embedding."
+    },
+    {
+      "grade": "MUST",
+      "rule": "SQL that includes external input must use the prepared API.",
+      "note": "Prefer fxb-sqlite-query-p / fxb-sqlite-exec-p."
+    }
+  ],
+
+  "coding_standards": [
+    {
+      "grade": "SHOULD",
+      "rule": "Use kebab-case for FL function names."
+    },
+    {
+      "grade": "SHOULD",
+      "rule": "Keep functions small enough to debug through generated C when needed."
+    },
+    {
+      "grade": "SHOULD",
+      "rule": "Prefer explicit helpers for status, JSON, and validation instead of ad hoc string assembly."
+    }
+  ],
+
+  "security_rules": [
+    {
+      "grade": "MUST",
+      "rule": "Escape all HTML that includes user-controlled data."
+    },
+    {
+      "grade": "MUST",
+      "rule": "Escape </script> when serializing JSON into inline script blocks."
+    },
+    {
+      "grade": "MUST",
+      "rule": "Validate external input before using it in SQL, HTML, or route construction."
+    }
+  ],
+
+  "validation_rules": [
+    {
+      "grade": "MUST",
+      "rule": "Build success is not enough; check fixpoint PASS too."
+    },
+    {
+      "grade": "MUST",
+      "rule": "New APIs should have at least one happy-path test and one failure-path test."
+    },
+    {
+      "grade": "SHOULD",
+      "rule": "New syntax or runtime behavior should come with a regression test."
+    },
+    {
+      "grade": "SHOULD",
+      "rule": "If a build fails, reproduce it with the lowest-level command that shows the error clearly."
+    }
+  ],
+
+  "review_policy": {
+    "source": "LANGUAGE-REVIEW-POLICY.md",
+    "rule": "Classify review findings as LANGUAGE SEMANTICS, COMPILER BUG, RUNTIME CONSTRAINT, API CONSTRAINT, STDLIB GAP, or APPLICATION BUG.",
+    "grading": "Always record severity, breaking status, fixability, and recommended resolution."
+  },
+
+  "document_index": [
+    {
+      "path": "BUILD.md",
+      "purpose": "Build and run commands, environment setup, and platform-specific compiler notes."
+    },
+    {
+      "path": "DEBUG.md",
+      "purpose": "Failure reproduction, low-level compiler debugging, and log recovery steps."
+    },
+    {
+      "path": "TESTING.md",
+      "purpose": "Conformance checks, app smoke tests, and API-level verification guidance."
+    },
+    {
+      "path": "SECURITY.md",
+      "purpose": "Escaping rules, SQL safety, and input-validation policy."
+    },
+    {
+      "path": "ROADMAP.md",
+      "purpose": "Current priorities and planned work."
+    },
+    {
+      "path": "CHANGELOG.md",
+      "purpose": "Notable changes, especially document and workflow changes."
+    }
   ]
 }

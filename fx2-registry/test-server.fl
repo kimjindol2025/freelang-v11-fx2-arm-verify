@@ -1,0 +1,25 @@
+;; test-server.fl — fx2 레지스트리 테스트 서버
+
+(println "=== fx2-registry 테스트 ===")
+
+;; 간단한 패키지 목록
+(define packages [
+  {"name" "str-indent" "version" "1.0.0"}
+  {"name" "math-clamp" "version" "1.0.0"}
+])
+
+;; 라우트 1: 패키지 목록
+(defn handle-list [$req]
+  (server-json (json_stringify {"ok" true "packages" packages})))
+
+;; 라우트 2: 헬스 체크
+(defn handle-health [$req]
+  (server-json (json_stringify {"ok" true "service" "fx2-registry"})))
+
+;; 라우팅 등록
+(server-get "/fx/packages" "handle-list")
+(server-get "/health" "handle-health")
+
+;; 서버 시작
+(server-start 40330)
+(println "✅ 테스트 서버 준비 완료 (포트 40330)")

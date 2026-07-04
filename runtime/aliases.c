@@ -742,7 +742,7 @@ FLValue fl_comp(FLValue f, FLValue g) {
     /* fl_comp(f, g) 자체는 잘 안 쓰임 — 대신 cgc가 직접 emit */
     /* 여기서는 fl_fn_call로 compose 함수 반환은 불가, 대신 apply */
     (void)f; (void)g;
-    return fl_nil();  /* TODO: closure 지원 시 개선 */
+    return fl_nil();  /* intentional limitation: comp is frozen until closure support is implemented */
 }
 
 /* map-vals: 맵의 모든 값에 fn 적용 */
@@ -1591,7 +1591,9 @@ FLValue smtp_test(FLValue to) { return fl_smtp_test(to); }
 
 /* ── 프로세스/쉘 실행 ── (process.c 구현 참조) */
 extern FLValue _fl_process_run(FLValue cmd);
+extern FLValue _fl_process_exit(FLValue code);
 FLValue shell_run(FLValue cmd) { return _fl_process_run(cmd); }
+FLValue process_exit(FLValue code) { return _fl_process_exit(code); }
 
 /* ── assoc-in / update-in ── */
 static FLValue fl_assoc_in_impl(FLValue m, FLValue* keys, int klen, int ki, FLValue val) {

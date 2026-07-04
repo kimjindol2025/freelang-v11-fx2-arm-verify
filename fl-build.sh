@@ -9,7 +9,44 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
+
+pick_cgc_bin() {
+  if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
+    echo "$CGC_BIN"
+    return 0
+  fi
+
+  case "$(uname -m)" in
+    aarch64|arm64)
+      for candidate in         /root/freelang-v11/bin/cgc-bin.bak         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup         /home/kimjin/freelang-v11/bin/cgc-bin
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    *)
+      for candidate in         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin.bak         /home/kimjin/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+  esac
+
+  return 1
+}
+
+CGC_BIN="$(pick_cgc_bin || true)"
+if [ -z "$CGC_BIN" ]; then
+  echo "❌ cgc-bin 실행 파일을 찾지 못했습니다."
+  echo "   /root/freelang-v11/bin/cgc-bin.bak 같은 arm64 빌드나"
+  echo "   환경변수 CGC_BIN을 지정해서 다시 시도하세요."
+  exit 1
+fi
 
 # 플래그 파싱
 NO_NET=0
@@ -411,7 +448,7 @@ fi
 # ── libfx.a 캐시 (런타임 변경 시에만 재빌드) ─────────────────────
 LIBFX_A="$RUNTIME_DIR/libfx.a"
 LIBFX_HASH_FILE="$RUNTIME_DIR/.libfx_hash"
-CURRENT_HASH=$(md5sum $CORE_SRCS "$RUNTIME_DIR/runtime.h" 2>/dev/null | md5sum | cut -d' ' -f1)
+CURRENT_HASH=$(md5sum $CORE_SRCS "$RUNTIME_DIR/runtime.h" "$SCRIPT_REAL" 2>/dev/null | md5sum | cut -d' ' -f1)
 
 if [ ! -f "$LIBFX_A" ] || [ "$(cat "$LIBFX_HASH_FILE" 2>/dev/null)" != "${CURRENT_HASH}_${NO_NET}" ]; then
   echo "   📦 libfx.a 빌드 중... (런타임 변경 감지)"
@@ -422,6 +459,7 @@ if [ ! -f "$LIBFX_A" ] || [ "$(cat "$LIBFX_HASH_FILE" 2>/dev/null)" != "${CURREN
     gcc -O2 -c "$src" -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$obj" &
   done
   wait
+  rm -f "$LIBFX_A"
   ar rcs "$LIBFX_A" "$OBJ_DIR"/*.o
   rm -rf "$OBJ_DIR"
   echo "${CURRENT_HASH}_${NO_NET}" > "$LIBFX_HASH_FILE"
@@ -447,14 +485,15 @@ APP_HASH=$(md5sum "$PREPROCESSED" 2>/dev/null | cut -d' ' -f1)
 if [ ! -f "$APP_O" ] || [ "$(cat "$APP_HASH_FILE" 2>/dev/null)" != "${APP_HASH}_${NO_NET}" ]; then
   echo "   🔧 app.o 컴파일 중..."
   if gcc -O2 -c -Werror=implicit-function-declaration "$C_FILE" \
-    -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$APP_O" 2>/tmp/fl_app_gcc_$$.log; then
+    -I "$RUNTIME_DIR" $EXTRA_CFLAGS -o "$APP_O" 2>/tmp/fl_app_gcc_$$.log; then
     echo "${APP_HASH}_${NO_NET}" > "$APP_HASH_FILE"
     echo "   ✅ app.o 완성 (이후 빌드는 재사용)"
   else
-    # 컴파일 실패 → 캐시된 .o 삭제 후 에러 출력 (Stage 4 파서로 위임)
     rm -f "$APP_O" "$APP_HASH_FILE"
-    cat /tmp/fl_app_gcc_$$.log >> /tmp/fl_gcc_placeholder_$$.log 2>/dev/null || true
-    mv /tmp/fl_app_gcc_$$.log /tmp/fl_gcc_placeholder_$$.log
+    echo "❌ app.o 컴파일 실패:"
+    cat /tmp/fl_app_gcc_$$.log
+    rm -f "$C_FILE" "$PREPROCESSED" /tmp/fl_app_gcc_$$.log
+    exit 1
   fi
   rm -f /tmp/fl_app_gcc_$$.log 2>/dev/null || true
 else

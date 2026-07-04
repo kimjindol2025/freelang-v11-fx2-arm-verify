@@ -1,0 +1,9 @@
+{
+  "name": "str-indent",
+  "version": "1.0.0",
+  "args": 2,
+  "tags": ["string", "formatting"],
+  "description": "문자열 앞에 n개 공백 추가",
+  "body": "FLValue ufl_str_indent(FLValue s, FLValue n) {\n    if (s.tag != FL_STRING || n.tag != FL_INT) return s;\n    int64_t cnt = n.i < 0 ? 0 : n.i;\n    const char* src = ((FLString*)s.obj)->data;\n    size_t slen = strlen(src);\n    char* buf = (char*)fl_arena_alloc(cnt + slen + 1);\n    if (!buf) return s;\n    memset(buf, 32, cnt);\n    memcpy(buf + cnt, src, slen);\n    buf[cnt + slen] = 0;\n    return fl_str_val(buf);\n}",
+  "test": "(println (str-indent \"hello\" 4))\n(println (str-indent \"world\" 2))"
+}

@@ -1,0 +1,130 @@
+;; modules.fl — fx2 패키지 관리 로직
+;; 패키지 로드, 빌드, 설치, 제거
+
+;; 환경변수 읽기 — fl-env-get은 bootstrap.js에서 미구현이므로 shell-exec 사용
+(defn read-env [$key $default]
+  (let [$v (str-trim (or (shell-exec (str "printenv " $key " 2>/dev/null")) ""))]
+    (if (= $v "") $default $v)))
+
+(define FX2_DIR (read-env "FX2_DIR" "/home/kimjin/freelang-v11-fx2"))
+(define FL_DIR  (read-env "FL_DIR"  "/home/kimjin/freelang-v11"))
+(define PACKAGES_DIR    (str FX2_DIR "/packages"))
+(define INSTALLED_FILE  (str FX2_DIR "/runtime/installed.json"))
+(define GEN_SCRIPT      (str FX2_DIR "/fl-pkg-gen-c.py"))
+(define FL_BOOTSTRAP    (str FL_DIR "/bootstrap.js"))
+
+;; ─── 설치 목록 I/O ────────────────────────────────────────────
+(defn read-installed []
+  (try
+    (if (file-exists INSTALLED_FILE)
+      (json-parse (file-read INSTALLED_FILE))
+      [])
+    (catch $e [])))
+
+(defn write-installed [$pkgs]
+  (file-write INSTALLED_FILE (json-stringify $pkgs)))
+
+;; ─── user-fns.c 재생성 ─────────────────────────────────────────
+(defn regen-user-fns []
+  (let [$out (shell-exec (str "python3 " GEN_SCRIPT " " FX2_DIR " 2>&1"))]
+    (try (json-parse $out) (catch $e {"ok" false "error" (or $out "스크립트 실패")}))))
+
+;; ─── packages/ 디렉토리 목록 ────────────────────────────────────
+;; shell-exec "ls" + str-split 사용 (bootstrap.js에 file-list 미구현)
+(defn load-all-packages []
+  (let [$raw (shell-exec (str "ls " PACKAGES_DIR " 2>/dev/null"))
+        $all (filter (fn [$s] (not (= $s "")))
+               (str-split (or $raw "") "\n"))]
+    (filter (fn [$d]
+      (and
+        (not (str-starts-with $d "."))
+        (file-is-dir (str PACKAGES_DIR "/" $d))))
+      $all)))
+
+;; ─── 패키지 메타데이터 파싱 ────────────────────────────────────
+(defn parse-package [$pkg-name]
+  (let [$path (str PACKAGES_DIR "/" $pkg-name "/metadata.json")]
+    (try
+      (json-parse (file-read $path))
+      (catch $e nil))))
+
+;; ─── 설치 여부 확인 헬퍼 ────────────────────────────────────────
+(defn pkg-installed? [$installed $name]
+  (not (nil? (some (fn [$n] (if (= $n $name) true nil)) $installed))))
+
+;; ─── 전체 패키지 목록 (installed 상태 포함) ────────────────────
+(defn list-packages []
+  (let [$installed (read-installed)
+        $pkg-dirs  (load-all-packages)
+        $pkgs-raw  (map (fn [$dname]
+          (let [$pkg (parse-package $dname)]
+            (if (nil? $pkg)
+              nil
+              {"name"        (get $pkg "name")
+               "version"     (get $pkg "version")
+               "description" (get $pkg "description")
+               "tags"        (or (get $pkg "tags") [])
+               "installed"   (pkg-installed? $installed $dname)})))
+          $pkg-dirs)]
+    (filter (fn [$p] (not (nil? $p))) $pkgs-raw)))
+
+;; ─── 단일 패키지 정보 (installed 상태 포함) ────────────────────
+(defn get-package-info [$name]
+  (let [$pkg (parse-package $name)]
+    (if (nil? $pkg)
+      nil
+      (let [$installed (read-installed)]
+        (assoc $pkg "installed" (pkg-installed? $installed $name))))))
+
+;; ─── 패키지 설치 ────────────────────────────────────────────────
+(defn build-package [$name]
+  (let [$pkg (parse-package $name)]
+    (if (nil? $pkg)
+      {"ok" false "error" "Package not found"}
+      (let [$installed (read-installed)]
+        (if (pkg-installed? $installed $name)
+          {"ok" true "name" $name "action" "already-installed" "installed" $installed}
+          (let [$new-list (push $installed $name)
+                $_ (write-installed $new-list)
+                $regen (regen-user-fns)]
+            {"ok" (or (get $regen "ok") false)
+             "name" $name
+             "action" "installed"
+             "installed" $new-list
+             "regen" $regen}))))))
+
+;; ─── 패키지 제거 ────────────────────────────────────────────────
+(defn remove-package [$name]
+  (let [$installed (read-installed)
+        $new-list  (filter (fn [$n] (not (= $n $name))) $installed)
+        $_ (write-installed $new-list)
+        $regen (regen-user-fns)]
+    {"ok" true
+     "name" $name
+     "action" "removed"
+     "installed" $new-list
+     "regen" $regen}))
+
+;; ─── 패키지 테스트 ──────────────────────────────────────────────
+(defn test-package [$name]
+  (let [$pkg (parse-package $name)]
+    (if (nil? $pkg)
+      {"ok" false "error" "Package not found"}
+      (let [$test-code (get $pkg "test")]
+        (if (or (nil? $test-code) (= $test-code ""))
+          {"ok" false "error" "No test defined for this package"}
+          (let [$pkg-fl  (str PACKAGES_DIR "/" $name "/" $name ".fl")
+                $fl-src  (if (file-exists $pkg-fl) (file-read $pkg-fl) "")
+                $full    (str $fl-src "\n" $test-code)
+                $tmp     (str "/tmp/fx2-test-" $name ".fl")
+                $_ (file-write $tmp $full)
+                $cmd (str "timeout 10 node " FL_BOOTSTRAP " run " $tmp " 2>&1")
+                $out (shell-exec $cmd)]
+            {"ok"     true
+             "name"   $name
+             "output" (or $out "")
+             "passed" (not (str-includes (or $out "") "오류"))}))))))
+
+;; ─── 설치된 패키지만 ────────────────────────────────────────────
+(defn list-installed []
+  (filter (fn [$p] (get $p "installed")) (list-packages)))

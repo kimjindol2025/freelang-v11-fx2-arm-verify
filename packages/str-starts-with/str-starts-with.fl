@@ -1,0 +1,6 @@
+;; packages/str-starts-with/str-starts-with.fl
+;; 자동 생성된 패키지 래퍼
+
+(defn str-starts-with [& args]
+  ;; 런타임 구현 placeholder
+  nil)

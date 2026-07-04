@@ -1,0 +1,34 @@
+;; fx.rules.conformance — conformance.fl 전용 규칙
+
+(defn _line-has [$lines $needle]
+  (some (fn [$l] (str-includes $l $needle)) $lines))
+
+(defn _line-has-any [$lines $needles]
+  (some (fn [$n] (_line-has $lines $n)) $needles))
+
+(check-error
+  "range 단인자 금지"
+  (fn [$src $lines]
+    (if (_line-has $lines "(range ")
+      (if (_line-has $lines "(range 0 ") nil
+        "use (range 0 n) instead of (range n)")
+      nil)))
+
+(check-error
+  "str-includes는 boolean"
+  (fn [$src $lines]
+    (if (_line-has $lines "(= (str-includes")
+      "do not compare str-includes with 1"
+      nil)))
+
+(check-error
+  "케밥케이스 함수명"
+  (fn [$src $lines]
+    (if (_line-has-any $lines
+          ["file_read" "file_write" "file_exists"
+           "json_parse" "json_stringify" "json_try_parse"
+           "str_includes" "str_contains" "str_split" "str_join" "str_trim" "str_replace"
+           "sqlite_query" "sqlite_exec" "sqlite_open" "sqlite_one"])
+      "underscore function names are forbidden"
+      nil)))
+

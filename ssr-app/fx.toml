@@ -1,0 +1,9 @@
+[project]
+name   = "fx2-ssr-front"
+entry  = "app.fl"
+output = "ssr-front-bin"
+port   = 8435
+
+[runtime]
+packages = [
+]

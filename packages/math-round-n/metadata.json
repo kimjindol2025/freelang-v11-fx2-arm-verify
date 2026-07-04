@@ -1,0 +1,12 @@
+{
+  "name": "math-round-n",
+  "version": "1.0.0",
+  "args": 2,
+  "tags": [
+    "math",
+    "number"
+  ],
+  "description": "소수점 n자리 반올림 (math-round v n)",
+  "body": "#include <math.h>\nFLValue ufl_math_round_n(FLValue v, FLValue n) {\n    double dv = (v.tag == FL_INT) ? (double)v.i : v.f;\n    int64_t places = (n.tag == FL_INT) ? n.i : 0;\n    if (places < 0) places = 0;\n    double factor = pow(10.0, (double)places);\n    return fl_float(round(dv * factor) / factor);\n}",
+  "test": "(println (math-round-n 3.14159 2))\n(println (math-round-n 2.5 0))"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "math-lerp",
+  "version": "1.0.0",
+  "args": 3,
+  "tags": ["math", "interpolation"],
+  "description": "선형 보간 (math-lerp a b t) → a + (b-a)*t",
+  "body": "FLValue ufl_math_lerp(FLValue a, FLValue b, FLValue t) {\n    double da = (a.tag == FL_INT) ? (double)a.i : a.f;\n    double db = (b.tag == FL_INT) ? (double)b.i : b.f;\n    double dt = (t.tag == FL_INT) ? (double)t.i : t.f;\n    return fl_float(da + (db - da) * dt);\n}",
+  "test": "(println (math-lerp 0 100 0.5))\n(println (math-lerp 10 20 0.25))"
+}

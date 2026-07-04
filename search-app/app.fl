@@ -1,0 +1,240 @@
+;; search-app/app.fl — fx2 Local Search Engine
+
+(define SERVER_PORT 8472)
+
+(defn doc [$id $title $path $kind $summary $content $text]
+  {"id" $id
+   "title" $title
+   "path" $path
+   "kind" $kind
+   "summary" $summary
+   "content" $content
+   "text" $text})
+
+(define DOCS (list
+  (doc 1 "CANON.md" "/root/freelang-v11-fx2/docs/CANON.md" "canon"
+       "기준점, 파일 정책, 언어 완성 목표"
+       (file-read "/root/freelang-v11-fx2/docs/CANON.md")
+       "canon freeze completion spec freeze file policy completion")
+  (doc 2 "SPEC.md" "/root/freelang-v11-fx2/docs/SPEC.md" "spec"
+       "언어 형식, 값, 평가, binding, intentional limitations"
+       (file-read "/root/freelang-v11-fx2/docs/SPEC.md")
+       "spec intentional limitation binding closure verifier")
+  (doc 3 "WORKFLOW.md" "/root/freelang-v11-fx2/docs/WORKFLOW.md" "workflow"
+       "작업 순서, verifier 단일 진입점, 완성 정의"
+       (file-read "/root/freelang-v11-fx2/docs/WORKFLOW.md")
+       "workflow verifier validation completion")
+  (doc 4 "CONFORMANCE.md" "/root/freelang-v11-fx2/docs/CONFORMANCE.md" "conformance"
+       "릴리즈 게이트, intentional limitations, 대표 검증"
+       (file-read "/root/freelang-v11-fx2/docs/CONFORMANCE.md")
+       "conformance intentional limitation verifier release gate")
+  (doc 5 "DEPRECATED.md" "/root/freelang-v11-fx2/docs/DEPRECATED.md" "canon"
+       "폐기된 래퍼와 문서 목록"
+       (file-read "/root/freelang-v11-fx2/docs/DEPRECATED.md")
+       "deprecated wrapper document list")
+  (doc 6 "CLAUDE.airc" "/root/freelang-v11-fx2/CLAUDE.airc" "handoff"
+       "fx2 작업 규칙, 고정점, closure, range, str-includes"
+       (file-read "/root/freelang-v11-fx2/CLAUDE.airc")
+       "claude airc closure range str includes verifier atom")
+  (doc 7 "spec/conformance.fl" "/root/freelang-v11-fx2/spec/conformance.fl" "test"
+       "핵심 conformance smoke test"
+       (file-read "/root/freelang-v11-fx2/spec/conformance.fl")
+       "conformance smoke test verifier")
+  (doc 8 "demo-web/app.fl" "/root/freelang-v11-fx2/demo-web/app.fl" "app"
+       "웹 서버 데모와 HTTP 라우팅 예시"
+       (file-read "/root/freelang-v11-fx2/demo-web/app.fl")
+       "web server demo http routing server get server html")
+  (doc 9 "demo-log/app.fl" "/root/freelang-v11-fx2/demo-log/app.fl" "app"
+       "로그 분석 데모와 텍스트 검색 예시"
+       (file-read "/root/freelang-v11-fx2/demo-log/app.fl")
+       "log analyzer text search str count str truncate")
+))
+
+(defn doc-search-text [$doc]
+  (str (get $doc "title") " "
+       (get $doc "path") " "
+       (get $doc "kind") " "
+       (get $doc "summary") " "
+       (get $doc "content") " "
+       (get $doc "text")))
+
+(defn normalize-query [$q]
+  (let [$raw (if (nil? $q) "" $q)]
+    (ascii-lower (str-trim $raw))))
+
+(defn ascii-lower [$s]
+  (let [$v (if (nil? $s) "" $s)
+        $a1 (str-replace $v "A" "a")
+        $a2 (str-replace $a1 "B" "b")
+        $a3 (str-replace $a2 "C" "c")
+        $a4 (str-replace $a3 "D" "d")
+        $a5 (str-replace $a4 "E" "e")
+        $a6 (str-replace $a5 "F" "f")
+        $a7 (str-replace $a6 "G" "g")
+        $a8 (str-replace $a7 "H" "h")
+        $a9 (str-replace $a8 "I" "i")
+        $a10 (str-replace $a9 "J" "j")
+        $a11 (str-replace $a10 "K" "k")
+        $a12 (str-replace $a11 "L" "l")
+        $a13 (str-replace $a12 "M" "m")
+        $a14 (str-replace $a13 "N" "n")
+        $a15 (str-replace $a14 "O" "o")
+        $a16 (str-replace $a15 "P" "p")
+        $a17 (str-replace $a16 "Q" "q")
+        $a18 (str-replace $a17 "R" "r")
+        $a19 (str-replace $a18 "S" "s")
+        $a20 (str-replace $a19 "T" "t")
+        $a21 (str-replace $a20 "U" "u")
+        $a22 (str-replace $a21 "V" "v")
+        $a23 (str-replace $a22 "W" "w")
+        $a24 (str-replace $a23 "X" "x")
+        $a25 (str-replace $a24 "Y" "y")
+        $a26 (str-replace $a25 "Z" "z")]
+    $a26))
+
+(defn doc-matches? [$doc $query]
+  (let [$needle (normalize-query $query)
+        $haystack (ascii-lower (doc-search-text $doc))]
+    (if (= $needle "")
+      true
+      (str-includes $haystack $needle))))
+
+(defn search-docs [$query]
+  (let [$q (normalize-query $query)]
+    (if (= $q "")
+      DOCS
+      (filter (fn [$doc] (doc-matches? $doc $q)) DOCS))))
+
+(defn html-escape [$s]
+  (let [$v (if (nil? $s) "" $s)
+        $e1 (str-replace $v "&" "&amp;")
+        $e2 (str-replace $e1 "<" "&lt;")
+        $e3 (str-replace $e2 ">" "&gt;")
+        $e4 (str-replace $e3 "\"" "&quot;")
+        $e5 (str-replace $e4 "'" "&#39;")]
+    $e5))
+
+(defn search-page [$q]
+  (let [$safe-q (html-escape (if (nil? $q) "" $q))
+        $docs-json (str-replace (json-stringify DOCS) "</script>" "<\\/script>")
+        $body (str
+                "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                "<title>fx2 Local Search</title>"
+                "<style>"
+                "*{box-sizing:border-box}"
+                "body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:radial-gradient(circle at top,#132238 0,#0d1117 34%,#090c10 100%);color:#e6edf3}"
+                ".wrap{max-width:1180px;margin:0 auto;padding:28px 18px 48px}"
+                ".hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:18px}"
+                ".kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9fb5ff}"
+                ".dot{width:8px;height:8px;border-radius:999px;background:#58a6ff;box-shadow:0 0 18px #58a6ff}"
+                "h1{margin:8px 0 6px;font-size:34px;line-height:1.1}"
+                ".sub{margin:0;color:#9aa4b2;max-width:760px;line-height:1.55}"
+                ".hero-card{min-width:220px;padding:16px 18px;border:1px solid #2d3748;border-radius:18px;background:rgba(22,27,34,.78);backdrop-filter:blur(10px)}"
+                ".hero-card .label{font-size:12px;color:#8b949e;margin-bottom:6px}"
+                ".hero-card .value{font-size:26px;font-weight:800;color:#f0f6fc}"
+                ".searchbar{display:flex;gap:10px;align-items:center;margin:20px 0 12px;padding:14px;background:rgba(22,27,34,.88);border:1px solid #30363d;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.2)}"
+                "input{flex:1;padding:15px 16px;border-radius:14px;border:1px solid #3a4657;background:#0d1117;color:#e6edf3;font-size:16px;outline:none}"
+                "input:focus{border-color:#58a6ff;box-shadow:0 0 0 3px rgba(88,166,255,.15)}"
+                "button{padding:14px 18px;border-radius:14px;border:0;background:linear-gradient(135deg,#2ea043,#238636);color:#fff;font-weight:800;cursor:pointer;min-width:92px}"
+                ".hint{font-size:12px;color:#8b949e;margin:10px 4px 22px}"
+                ".grid{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(280px,.9fr);gap:18px;align-items:start}"
+                ".panel{background:rgba(13,17,23,.82);border:1px solid #30363d;border-radius:18px;padding:18px;box-shadow:0 14px 36px rgba(0,0,0,.22)}"
+                ".panel h2{margin:0 0 12px;font-size:18px;color:#79c0ff}"
+                ".stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 16px}"
+                ".stat{padding:12px 14px;border-radius:14px;background:#161b22;border:1px solid #30363d}"
+                ".stat .label{font-size:12px;color:#8b949e;margin-bottom:4px}"
+                ".stat .value{font-size:20px;font-weight:800}"
+                ".result{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:16px 18px;margin:12px 0;transition:transform .12s ease,border-color .12s ease}"
+                ".result:hover{transform:translateY(-1px);border-color:#58a6ff}"
+                ".result-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:6px}"
+                ".title{font-size:17px;font-weight:800;line-height:1.3;color:#79c0ff}"
+                ".score{flex:0 0 auto;padding:4px 9px;border-radius:999px;background:#21262d;color:#c9d1d9;font-size:12px}"
+                ".meta{font-size:12px;color:#8b949e;margin-bottom:8px}"
+                ".snippet{line-height:1.6;color:#c9d1d9;white-space:pre-wrap}"
+                ".chips{display:flex;flex-wrap:wrap;gap:8px}"
+                ".tag{display:inline-block;padding:7px 12px;border-radius:999px;background:#21262d;color:#b7c2d0;font-size:12px;border:1px solid #30363d}"
+                ".aside-list{display:flex;flex-direction:column;gap:10px}"
+                ".aside-item{padding:12px 14px;border-radius:14px;background:#161b22;border:1px solid #30363d}"
+                ".aside-item .name{font-weight:700;color:#f0f6fc;margin-bottom:4px}"
+                ".aside-item .desc{font-size:12px;color:#8b949e;line-height:1.45}"
+                ".empty{padding:18px 0;color:#8b949e}"
+                "@media (max-width: 940px){.grid{grid-template-columns:1fr}.hero{flex-direction:column;align-items:stretch}.stats{grid-template-columns:1fr}}"
+                "</style></head><body><div class='wrap'>"
+                "<div class='hero'>"
+                "<div>"
+                "<div class='kicker'><span class='dot'></span>FreeLang fx2 · Local Search</div>"
+                "<h1>언어 캐논과 작업 규칙을 한 번에 찾는 로컬 검색</h1>"
+                "<p class='sub'>FreeLang fx2 기준점, intentional limitations, conformance, workflow, AIRC 인수 문서를 한 화면에서 확인합니다.</p>"
+                "</div>"
+                "<div class='hero-card'><div class='label'>인덱스 문서</div><div class='value'>9개</div></div>"
+                "</div>"
+                "<div class='searchbar'><input id='q' value='" $safe-q "' placeholder='예: freeze, verifier, intentional limitation, closure'><button onclick='runSearch()'>검색</button></div>"
+                "<div class='hint'>Enter 키로도 검색됩니다. 쿼리가 비어 있으면 전체 문서를 표시합니다.</div>"
+                "<div class='grid'>"
+                "<section class='panel'>"
+                "<h2>결과</h2>"
+                "<div class='stats'>"
+                "<div class='stat'><div class='label'>문서 수</div><div class='value' id='stat-total'>0</div></div>"
+                "<div class='stat'><div class='label'>결과 수</div><div class='value' id='stat-count'>0</div></div>"
+                "<div class='stat'><div class='label'>쿼리</div><div class='value' id='stat-query'>-</div></div>"
+                "</div>"
+                "<div id='results'></div>"
+                "</section>"
+                "<aside class='panel'>"
+                "<h2>인덱스</h2>"
+                "<div class='chips'>"
+                "<span class='tag'>CANON</span>"
+                "<span class='tag'>SPEC</span>"
+                "<span class='tag'>WORKFLOW</span>"
+                "<span class='tag'>CONFORMANCE</span>"
+                "<span class='tag'>DEPRECATED</span>"
+                "<span class='tag'>CLAUDE.airc</span>"
+                "<span class='tag'>spec/conformance.fl</span>"
+                "<span class='tag'>demo-web</span>"
+                "<span class='tag'>demo-log</span>"
+                "</div>"
+                "<h2 style='margin-top:18px'>검색 힌트</h2>"
+                "<div class='aside-list'>"
+                "<div class='aside-item'><div class='name'>freeze</div><div class='desc'>Spec Freeze 문맥과 고정 목표를 찾습니다.</div></div>"
+                "<div class='aside-item'><div class='name'>verifier</div><div class='desc'>단일 verifier 진입점과 검증 흐름을 찾습니다.</div></div>"
+                "<div class='aside-item'><div class='name'>intentional limitation</div><div class='desc'>의도된 제한으로 고정된 항목을 찾습니다.</div></div>"
+                "</div>"
+                "</aside>"
+                "</div>"
+                "<script>"
+                "const DOCS = " $docs-json ";"
+                "function norm(s){return String(s||'').toLowerCase();}"
+                "function tokens(q){return norm(q).split(/\s+/).filter(Boolean);}"
+                "function expand(t){const m={freeze:['frozen','freeze','spec freeze','spec-freeze','completion','완성','고정'],verifier:['verify','verification','검증','conformance'],intentional:['intentional limitation','limitation','제약'],closure:['fn','atom','capture','클로저']};return [t].concat(m[t]||[]);}"
+                "function count(hay,needle){return needle?hay.split(needle).length-1:0;}"
+                "function score(doc,q){const text = norm(doc.title+' '+doc.path+' '+doc.kind+' '+doc.summary+' '+doc.content+' '+doc.text);let s=0;tokens(q).forEach(t=>{expand(t).forEach(x=>{s += count(text,x);});});return s;}"
+                "function card(doc){const el=document.createElement('article');el.className='result';const top=document.createElement('div');top.className='result-top';const title=document.createElement('div');title.className='title';title.textContent=doc.title;const sc=document.createElement('span');sc.className='score';sc.textContent='score '+doc.score;top.appendChild(title);top.appendChild(sc);el.appendChild(top);const meta=document.createElement('div');meta.className='meta';meta.textContent=doc.kind+' · '+doc.path;el.appendChild(meta);const sn=document.createElement('div');sn.className='snippet';sn.textContent=doc.summary;el.appendChild(sn);return el;}"
+                "function search(){const q=document.getElementById('q').value.trim();const res=(q ? DOCS.map(d=>({ ...d, score: score(d,q) })).filter(d=>d.score>0).sort((a,b)=>b.score-a.score) : DOCS.map(d=>({ ...d, score: 0 })));const top=res.slice(0,12);document.getElementById('stat-total').textContent = DOCS.length;document.getElementById('stat-count').textContent = top.length;document.getElementById('stat-query').textContent = q ? q : '전체';const box=document.getElementById('results');box.innerHTML='';if(!top.length){box.innerHTML='<div class=empty>결과 없음</div>';return;}top.forEach(d=>box.appendChild(card(d)));}"
+                "function runSearch(){search();history.replaceState(null,'','/?q='+encodeURIComponent(document.getElementById('q').value.trim()));}"
+                "document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch();});"
+                "search();"
+                "</script></div></body></html>")]
+    (server-html $body)))
+
+(defn api-search [$req]
+  (let [$q (req-query $req "q")
+        $results (search-docs $q)]
+    (server-json {"ok" true
+                  "query" (if (nil? $q) "" $q)
+                  "count" (length $results)
+                  "results" $results})))
+
+(defn req-query [$req $name]
+  (get (get $req "query") $name))
+
+(defn index-handler [$req]
+  (search-page (if (nil? (req-query $req "q")) "" (req-query $req "q"))))
+
+(server-get "/" "index-handler")
+(server-get "/api/search" "api-search")
+
+(println (str "🔎 fx2 Local Search — http://localhost:" SERVER_PORT))
+(println "   GET /          검색 UI")
+(println "   GET /api/search?q=freeze  검색 API")
+(server-start SERVER_PORT)

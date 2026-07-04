@@ -18,6 +18,11 @@ FLValue _fl_process_pid(void)  { return fl_int((int64_t)getpid()); }
 FLValue _fl_process_ppid(void) { return fl_int((int64_t)getppid()); }
 FLValue _fl_process_kill(FLValue pid) { return fl_bool(kill((pid_t)pid.i, SIGTERM) == 0); }
 FLValue _fl_process_exists(FLValue pid) { return fl_bool(kill((pid_t)pid.i, 0) == 0); }
+FLValue _fl_process_exit(FLValue code) {
+    int status = (code.tag == FL_INT) ? (int)code.i : 0;
+    exit(status);
+    return fl_nil();
+}
 FLValue _fl_process_wait(FLValue pid) {
     int status = 0;
     pid_t r = waitpid((pid_t)pid.i, &status, 0);

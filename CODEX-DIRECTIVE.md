@@ -1,0 +1,261 @@
+# CODEX 작업 지시서 — fx2 완성
+
+**발행**: 2026-07-02 (Claude Code 검증 세션 기반)
+**갱신**: 2026-07-04 — "완성"으로 미션 재정의. P0-3 추가(실측) +
+  기존 patches/(#1·#2·#3·#5)를 완성 경로에 통합. 이 노드가 patches/README.md가
+  요구하는 x86 노드임을 확인.
+**전제**: CODEX-MEMORY.md의 작업 규칙을 따른다. 이 문서는 "무엇을"이고, MEMORY는 "어떻게"다.
+
+---
+
+## 미션 — 지금부터 "완성"이 목표다
+
+fx2 = **v11 문법 + 단일 바이너리 배포**. 안정화 단계는 끝났고 이제 완성
+선언까지 간다. **완성의 정의는 임의로 판단하지 않는다** — 이미 문서화된
+`docs/CONFORMANCE.md`의 release 게이트를 그대로 완성 기준으로 쓴다:
+
+- `SPEC.md`와 runtime 동작이 일치
+- `tools/fl-verify.sh official <input.fl>`이 대표 소스에서 통과
+- conformance 소스(`spec/conformance.fl`) 통과
+- 빌드/실행 경로 불변
+- 알려진 제약사항 문서화 완료
+
+지금 이 게이트를 막고 있는 것은 **설계 문제가 아니라 구체적으로 특정된
+버그 6건**이다. 아래 순서대로 하나씩 깨면 끝난다.
+
+## ⚠️ 환경 확인 — 이 노드가 그 x86 노드다
+
+`patches/README.md`는 컴파일러 패치 적용에 "x86 노드(kimjin)"가 필요하다고
+명시한다. **이 기기가 그 노드다** (`uname -m` = x86_64,
+`/home/kimjin/freelang-v11/bin/cgc-bin` 실행 가능 확인됨). 단, 문서 기본값이
+`/root/...`로 돼 있으니 실행 시 반드시 환경변수로 덮어쓴다:
+
+```bash
+export CODEGEN=/home/kimjin/freelang-v11/self/codegen-c.fl
+export BUILD_CMD="cd /home/kimjin/freelang-v11 && node scripts/build.js"
+export FIXPOINT=/home/kimjin/freelang-v11/scripts/test-l2-fixpoint.sh
+export FLBUILD=/home/kimjin/freelang-v11-fx2/fl-build.sh
+export CONF=/home/kimjin/freelang-v11-fx2/spec/conformance.fl
+```
+
+`verify-fixpoint.sh`라는 이름의 파일은 fx2 저장소에 없다 — 대신
+`freelang-v11/scripts/test-l2-fixpoint.sh`(고정점 gen-a==gen-b==gen-c 검증)를
+쓴다. 이것도 안 맞으면 `--skip-fixpoint`를 **명시적으로** 붙이고 그 사실을
+기록한다(침묵 생략 금지, patches/README.md 원칙).
+
+## 현재 검증된 것 (재검증 불필요)
+
+- ssr-app E2E 전체 통과: `/` SSR, `/api/state`, `/tasks/add|toggle|clear` (커밋 40fc138)
+- `atom`/`swap!` + `fn`(defn 파라미터 캡처) + 재귀 순회 + `html-escape` 정상
+- 패키지 14개(str/math/time/path) 동작 — 253에서 검증됨
+- (2026-07-04, kimjin 노드) `CGC_BIN=/home/kimjin/freelang-v11/bin/cgc-bin`으로
+  일반 빌드 성공 확인. 단 `spec/conformance.fl`은 아래 P0-3으로 실패.
+
+---
+
+## 실행 순서 (완성까지 6단계 + 최종 게이트)
+
+**원칙**: 한 단계 통과 전 다음 단계로 안 넘어간다. 매 단계 conformance 회귀
+포함. 실패 2회 → 롤백 후 처음부터 (부분 수정 금지).
+
+```
+0. P0-3  process-exit 구현          ← conformance 자체가 안 돌아서 최우선
+1. P0-1  fl-build.sh 에러 삼킴 수정  ← 이후 단계 검증 신뢰성 확보
+2. 패치#2 defn 단일 표현식 (낮은 위험)
+3. 패치#3 맵 키 충돌 (낮은 위험)
+4. 패치#1 클로저 캡처 (중간 위험)   ← 기존 "P1"과 동일 이슈, 패치 이미 준비됨
+5. 패치#5 연산자 first-class (높은 위험) ← self-host 고정점 가장 흔들림, 마지막
+6. P0-2  --no-net stub 수정
+7. P2    fl-common/fx2.fl 실기 검증
+──────────────────────────────────
+   최종 게이트: docs/CONFORMANCE.md 5개 항목 전체 재확인 → 완성 선언
+```
+
+### 0. P0-3. `process-exit` 런타임 미구현 — conformance 빌드 자체가 실패 (재현 확정)
+
+```bash
+cd /home/kimjin/freelang-v11-fx2
+bash fl-build.sh spec/conformance.fl /tmp/conformance-bin
+```
+```
+🔍 C 타입 사전 검사...
+❌ FL 줄 64: type mismatch in conditional expression
+```
+
+**근본 원인**: `spec/conformance.fl:68`의 `(process-exit 1)`이 부르는
+`process-exit`이 runtime 어디에도 없다(`aliases.c`/`user-fns.c`/`user-fns.json`
+grep 0건). cgc-bin이 미선언 함수를 그대로 내보내 gcc가 암묵적 int로 처리 →
+`fl_println`(FLValue) 분기와 타입 충돌 → "type mismatch"라는 **엉뚱한 진단**.
+실제 원인(빌트인 함수 누락)은 에러에 안 드러남.
+
+**수정**:
+1. `runtime/`에 `FLValue fl_process_exit(FLValue code)` 추가 —
+   `exit((int)code.i)` 호출, FLValue 반환형으로 선언(타입 통일 목적).
+2. `runtime.h` 선언 + `user-fns.json`/aliases에 `process-exit` → `process_exit` 등록.
+3. **재발 방지**: cgc-bin이 컴파일 시점에 "알 수 없는 함수" 자체 감지 →
+   `알 수 없는 함수: process-exit` 같은 명확한 에러로 즉시 거부. gcc
+   syntax-check까지 넘어가서 엉뚱한 타입 에러로 시간 낭비하는 구조 개선.
+   (어려우면 이 항목만 분리해서 별도 이슈로.)
+
+**완료 기준**: `bash fl-build.sh spec/conformance.fl <out>` 무오류 빌드 +
+실행 시 `== FX2 CONFORMANCE PASS ==` 또는 실패 목록 정상 출력.
+
+### 1. P0-1. app.o 컴파일 실패를 삼키고 링크 강행
+
+`fl-build.sh`가 gcc 실패 로그를 `fl_gcc_placeholder`로 치환하고 링크를
+강행 → 진짜 에러 대신 `cannot find /tmp/fl_app_cache/<name>.o`만 보임.
+
+**수정**: app.o 실패 시 즉시 원본 gcc 로그 출력 + `exit 1`. placeholder
+우회 제거.
+
+### 2~5. 컴파일러 패치 4종 (이미 준비됨 — `patches/`)
+
+`patches/README.md` 적용 워크플로우 그대로 따른다:
+
+```bash
+cd /home/kimjin/freelang-v11-fx2/patches
+bash apply-on-x86.sh --dry-run          # 앵커 매칭 확인 (수정 없음)
+bash apply-on-x86.sh --bug 2            # 낮은 위험부터 1건씩
+bash apply-on-x86.sh --bug 3
+bash apply-on-x86.sh --bug 1            # = 기존 P1 클로저 캡처
+bash apply-on-x86.sh --bug 5            # 마지막, 고정점 가장 흔들림
+```
+
+패치 1건마다: 백업 → 적용 → cgc-bin 재빌드 → 고정점 → 최소 재현 →
+conformance 회귀. 하나라도 실패 시 `.bak` 원복, 다음 패치로 넘어가지 않는다.
+
+- **#2 defn 단일 표현식**: `cgc-defn`/`cgc-func-block` — 데이터 무손실 실패
+- **#3 맵 키 충돌**: `cgc-collect-vars` — 컴파일 실패
+- **#1 클로저 캡처**: `cgc-func-block` — `fn`이 outer `let`을 캡처 못 해
+  **조용히 틀린 값**이 나옴(FL 최악 패턴). 이게 기존 P1과 동일 이슈 —
+  patches/에 이미 정공법 패치가 준비돼 있으니 "컴파일 에러로 격상"은
+  이 패치가 실패할 때만 폴백으로 쓴다.
+- **#5 연산자 first-class**: `cgc`/`cgc-literal` — 표현력 제약, 가장 위험
+
+### 6. P0-2. `--no-net`이 libfx.a에 stub을 실제로 안 넣음
+
+`NET_LIBS`는 비우지만 SRCS에서 `http.c` 등을 stub으로 바꾸는 분기가 없어
+`SSL_accept undefined reference`. **수정**: `NO_NET=1`일 때 실물 3개 제외 +
+stub 3개 포함. (libfx 해시에 NO_NET 이미 반영돼 캐시는 자동 분리됨.)
+
+### 7. P2. fl-common/fx2.fl 실기 검증 (2026-07-04 재현 완료 — 이어서 할 것)
+
+**로컬 clone 완료**: `/home/kimjin/kim/Desktop/kim/01_Active_Projects/fl-common/fx2.fl`
+(이전엔 "못 찾음"이라 BLOCKED 보고했던 것 — 파일이 없던 게 아니라 clone을
+안 한 것뿐이었다. `gogs.dclub.kr/kim/fl-common`에 실재함.)
+
+**실측 결과**: 아래 3개 함수만 문제고, 나머지(ok/err/ok-val/err-msg/
+ok-val-or/safe-nth/safe-nth-or/require-val/require-row/require-fields/
+tpl-render)는 격리 빌드 시 C 타입 검사 통과 확인함 (재현 명령 하단 참고).
+
+**⚠️ 구조적 문제**: fx2는 dead-code elimination이 없다. `(load "fx2.fl")`
+하면 파일 안의 **모든 함수가 호출 여부와 무관하게 컴파일**된다. 즉 아래
+3개 중 하나라도 안 고치면 **fl-common/fx2.fl 전체를 load조차 못 한다**
+(일부만 쓰는 것도 불가능). 최우선으로 이 3개부터 고칠 것.
+
+**문제 1 — `safe-tick`/`safe-tick-interval`: try/catch 자체가 미지원**
+```
+[CGC-ERR] unsupported IR kind=try line=79
+[CGC-ERR] unsupported IR kind=try line=89
+```
+fx2 컴파일러(codegen-c)가 `(try ... (catch $e ...))`를 아예 처리 못 한다.
+이건 fl-common 쪽 문제가 아니라 **fx2 컴파일러 자체의 기능 누락**이다.
+- 수정 방향 A (근본): codegen-c.fl에 try/catch IR lowering 추가 (C의
+  setjmp/longjmp 또는 기존 P1 클로저 패치처럼 별도 패치로 분리)
+  → 이러면 fx2 전체에서 try/catch 쓸 수 있게 되는 큰 개선
+- 수정 방향 B (임시 회피): fl-common의 이 두 함수만 fx2.fl에서 제거하고
+  "fx2는 try/catch 미지원이라 safe-tick 계열 제공 안 함"이라고 SPEC/문서에
+  명시. 방향 A가 너무 크면 이걸로 우선 P2를 끝낸다.
+
+**문제 2 — `ok-then`: 함수 파라미터 동적 호출의 타입 불일치**
+```c
+return (fl_truthy(ok_p(r)) ? $fn(get(r, fl_str_val("value"))) : r);
+                              ^ error: type mismatch in conditional expression
+```
+`(defn ok-then [$r $fn] (if (ok? $r) ($fn (get $r "value")) $r))` —
+`$fn`이 파라미터로 전달된 함수를 호출하는 분기와, `$r`을 그대로 반환하는
+분기의 C 타입이 안 맞다고 컴파일러가 판단. `$fn(...)`의 반환 타입을
+FLValue로 통일하지 못하는 것으로 보임. patches/#5(연산자 first-class)나
+클로저 관련 패치와 연관 있을 수 있음 — 이미 진행 중인 패치 작업과 함께
+재확인할 것. 안 풀리면 임시로 fl-common에서 `ok-then` 제거하고 문서에 남김.
+
+**문제 3 — `ok?`/`err?`: fx2 runtime 내장 심볼과 이름 충돌**
+```
+/usr/bin/ld: runtime/libfx.a(aliases.o): in function `ok_p':
+multiple definition of `ok_p'; ...first defined here
+```
+`runtime/aliases.c:1868`에 이미 `FLValue ok_p(FLValue v)`가 있다 (HTTP
+응답 상태 체크용으로 보임, 근처에 `http_ok_p_alias`가 있음). fl-common의
+`(defn ok? [$r] ...)`가 컴파일되면 같은 심볼 `ok_p`가 되어 충돌.
+**이건 fl-common 쪽에서 고칠 문제** — Result 타입 predicate 이름을
+`ok?`/`err?` 대신 `result-ok?`/`result-err?`처럼 런타임 내장 함수와
+안 겹치는 이름으로 바꿔라. (다른 내장 함수와도 겹치는지 전수 확인 권장:
+`grep -n "FLValue <이름>_p\b" runtime/aliases.c`로 fl-common의 다른
+`?`-suffix 함수명도 미리 다 대조해볼 것.)
+
+**추가로 미확인 (시간 부족으로 못 끝냄, 이어서 확인할 것)**:
+- `set_interval`이 fx2 런타임 어디에도 없다 (`grep -rni interval runtime/`
+  결과 0건). `safe-tick-interval`은 문제 1(try/catch)과 별개로 이것도
+  없으면 못 돌아간다 — 둘 다 고쳐야 함.
+- `file-read`/`file_read`가 FL에서 부르는 이름으로 노출돼 있는지 미확인
+  (`fl_file_read`라는 내부 C 함수는 core.c:350에 있음, 하지만 별칭 매핑을
+  못 찾음) → `tpl-file`이 실제로 동작하는지 재확인 필요.
+- `db-one`/`require-db-row` (fxb-sqlite-* 계열)는 이번에 아예 테스트
+  안 함 — SQLite 핸들 여는 실제 시나리오로 검증할 것.
+
+**재현 명령 (그대로 실행)**:
+```bash
+cd /home/kimjin/freelang-v11-fx2
+# 문제 재현 — safe-tick 계열 포함 상태로 로드하면 아래처럼 try 에러
+/home/kimjin/freelang-v11/bin/cgc-bin \
+  /home/kimjin/kim/Desktop/kim/01_Active_Projects/fl-common/fx2.fl /tmp/check.c
+# → [CGC-ERR] unsupported IR kind=try line=79 / line=89
+
+# safe-tick 계열 제거 + ok-then 제거한 버전은 C 타입 검사까지 통과 확인됨
+# (재현 시 fx2.fl에서 24번 줄 ok-then, 77~92번 줄 safe-tick 계열 제거하고 재시도)
+```
+
+**완료 기준**: 위 3개(+set_interval/file-read 확인분) 전부 해결 후,
+fl-common/fx2.fl을 통째로 `(load ...)`한 실제 서버 프로그램(예: ssr-app에
+Result 타입 적용)을 빌드+실행해서 정상 동작 확인 → fl-common에 커밋+push.
+
+---
+
+## 검증 규율
+
+1. **서버 검증 전 `ps aux | grep <bin이름>` 필수.** graceful shutdown 30s
+   때문에 kill 직후에도 살아있고, SO_REUSEPORT로 여러 프로세스가 같은
+   포트를 나눠 받는다. 증상이 이상하면 코드보다 잔존 프로세스부터 의심.
+2. 검증 서버는 시작 전 이전 바이너리 전부 kill(PID 지정, `pkill -f` 금지).
+3. 빌드 산출물(`runtime/libfx.a`, `runtime/.libfx_hash`, `/tmp/fl_app_cache/*`,
+   `qbe/`)은 커밋 금지.
+4. 통과 선언은 E2E 실행 결과로만. 빌드 성공 ≠ 동작.
+5. 패치 적용 시 한 번에 여러 개 묶지 않는다(회귀 원인 격리).
+
+## 금지
+
+- `/home/kimjin/freelang-v11` 운영 v11 직접 수정 금지 — 패치는 fx2가 참조하는
+  `codegen-c.fl`을 고치는 것이므로 영향 범위를 반드시 확인하고, 백업 없이
+  건드리지 않는다. `cgc-bin.bak` 계열은 읽기 전용으로만.
+- 검증 실패 2회 → 해당 단계 롤백 후 처음부터 (부분 수정 금지).
+- 원격 push 전 `git ls-remote origin master`로 HEAD 확인 (다른 작업자 병행 중 — 지금 로컬도 origin 대비 갈라진 상태이니 push 전 반드시 재확인).
+
+## 완성 정의 (docs/CONFORMANCE.md 게이트 그대로)
+
+- [ ] P0-3: `process-exit` 구현 + `spec/conformance.fl` 빌드/실행 PASS
+- [ ] P0-1: app.o 에러 삼킴 제거 — 재현 케이스 통과 스크립트 동봉
+- [ ] 패치#2 (defn) 적용 + 고정점 + conformance PASS
+- [ ] 패치#3 (맵 키 충돌) 적용 + 고정점 + conformance PASS
+- [ ] 패치#1 (클로저 캡처) 적용 + 고정점 + conformance PASS — 조용한 오동작 0
+- [ ] 패치#5 (연산자 first-class) 적용 + 고정점 + conformance PASS
+- [ ] P0-2: `--no-net` 빌드 openssl/curl 없는 환경에서 한 번에 통과
+- [ ] P2-1: try/catch 미지원 문제 해결 (codegen-c 패치 또는 safe-tick 계열 제거+문서화)
+- [ ] P2-2: `ok-then` 동적 함수 호출 타입 불일치 해결 (또는 제거+문서화)
+- [ ] P2-3: `ok?`/`err?` → runtime 내장 `ok_p`와 이름 충돌 해결 (fl-common 쪽 이름 변경)
+- [ ] P2-4: `set_interval` 부재, `file-read` 별칭 노출 여부, `db-one` 실기 확인
+- [ ] P2 완료: fl-common/fx2.fl 통째로 load하는 실제 프로그램 빌드+실행 성공 → fl-common push
+- [ ] `tools/fl-verify.sh official spec/conformance.fl` 최종 통과
+- [ ] ssr-app / search-app E2E 재확인 (패치로 인한 회귀 없음)
+- [ ] 각 단계 Gogs 커밋 + 블로그(blog.dclub.kr) 기록
+- [ ] 위 전항 통과 시 — `docs/CONFORMANCE.md`에 "완성 선언 커밋" 명시하고
+      해당 커밋 SHA를 블로그에 남긴다

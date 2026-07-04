@@ -1,6 +1,6 @@
 /**
  * freelang-v11-fx2 — 사용자 패키지 함수
- * fl-resolve-deps.py가 module :use 선언에서 자동 생성합니다.
+ * fl-pkg-gen-c.py가 installed.json에서 자동 생성합니다.
  * 직접 수정하지 마세요.
  */
 #include "runtime.h"
@@ -184,57 +184,46 @@ FLValue ufl_path_basename(FLValue p) {
     return fl_str_val(result);
 }
 /* FL:FN_END */
+
 /* FL:USER_SECTION:END */
 
 /* FL:SHIM_SECTION:BEGIN */
 /* FL:SHIM_FN:str-lines */
 FLValue str_lines(FLValue a0) { return ufl_str_lines(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-count */
 FLValue str_count(FLValue a0, FLValue a1) { return ufl_str_count(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-lerp */
 FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_lerp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-round-n */
 FLValue math_round_n(FLValue a0, FLValue a1) { return ufl_math_round_n(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-sign */
 FLValue math_sign(FLValue a0) { return ufl_math_sign(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:path-dirname */
 FLValue path_dirname(FLValue a0) { return ufl_path_dirname(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-indent */
 FLValue str_indent(FLValue a0, FLValue a1) { return ufl_str_indent(a0, a1); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-truncate */
 FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_truncate(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:str-rpad */
 FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_rpad(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:math-clamp */
 FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_clamp(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:time-now-ms */
 FLValue time_now_ms(void) { return ufl_time_now_ms(); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:time-elapsed */
 FLValue time_elapsed(FLValue a0) { return ufl_time_elapsed(a0); }
 /* FL:SHIM_FN_END */
-
 /* FL:SHIM_FN:path-basename */
 FLValue path_basename(FLValue a0) { return ufl_path_basename(a0); }
 /* FL:SHIM_FN_END */

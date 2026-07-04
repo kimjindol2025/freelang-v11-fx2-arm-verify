@@ -1,0 +1,12 @@
+[project]
+name   = "fx2-local-search"
+entry  = "app.fl"
+output = "local-search-bin"
+
+[runtime]
+packages = [
+  "str-truncate",
+  "str-rpad",
+  "str-count",
+  "time-now-ms",
+]
