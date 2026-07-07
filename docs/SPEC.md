@@ -96,7 +96,7 @@ These are frozen as intentional limitations unless explicitly removed:
 
 - `str-includes` returns boolean.
 - `(range n)` is not the standard path; use `(range 0 n)`.
-- `fn` closure capture is limited; prefer atoms or parameter passing when required.
+- `fn` closures capture surrounding parameters and local bindings used by the function.
 - Naming violations are caught in verification before build where possible.
 
 ## Conformance requirement

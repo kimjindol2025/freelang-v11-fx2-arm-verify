@@ -1455,6 +1455,7 @@ FLValue fx_server_json(FLValue data) {
     return server_json(data);
 }
 
+
 /* server_respond — status + body 한번에 */
 FLValue fx_respond(FLValue status, FLValue data) {
     FLValue json;
@@ -1590,7 +1591,9 @@ FLValue smtp_test(FLValue to) { return fl_smtp_test(to); }
 
 /* ── 프로세스/쉘 실행 ── (process.c 구현 참조) */
 extern FLValue _fl_process_run(FLValue cmd);
+extern FLValue _fl_process_exit(FLValue code);
 FLValue shell_run(FLValue cmd) { return _fl_process_run(cmd); }
+FLValue process_exit(FLValue code) { return _fl_process_exit(code); }
 
 /* ── assoc-in / update-in ── */
 static FLValue fl_assoc_in_impl(FLValue m, FLValue* keys, int klen, int ki, FLValue val) {

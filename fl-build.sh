@@ -9,7 +9,44 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
-CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
+
+pick_cgc_bin() {
+  if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
+    echo "$CGC_BIN"
+    return 0
+  fi
+
+  case "$(uname -m)" in
+    aarch64|arm64)
+      for candidate in         /root/freelang-v11/bin/cgc-bin.bak         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup         /home/kimjin/freelang-v11/bin/cgc-bin
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    *)
+      for candidate in         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin.bak         /home/kimjin/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup
+      do
+        if [ -x "$candidate" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+  esac
+
+  return 1
+}
+
+CGC_BIN="$(pick_cgc_bin || true)"
+if [ -z "$CGC_BIN" ]; then
+  echo "❌ cgc-bin 실행 파일을 찾지 못했습니다."
+  echo "   /root/freelang-v11/bin/cgc-bin.bak 같은 arm64 빌드나"
+  echo "   환경변수 CGC_BIN을 지정해서 다시 시도하세요."
+  exit 1
+fi
 
 # 플래그 파싱
 NO_NET=0
@@ -144,10 +181,24 @@ python3 "$SCRIPT_DIR/fl-str-split.py" "$PREPROCESSED" 2>&1 || true
 CHECK_PARENS="/home/kimjin/freelang-v11/scripts/check-parens.py"
 if [ -f "$CHECK_PARENS" ]; then
   echo "🔍 괄호/브래킷 검사..."
-  if ! python3 "$CHECK_PARENS" "$PREPROCESSED" 2>&1; then
-    echo "❌ 사전 검사 실패 — 컴파일 중단"
-    rm -f "$PREPROCESSED"
-    exit 1
+  # CSS/JS/Python 문자열이 있는 파일은 false positive 위험 → cgc-bin이 최종 판단
+  # 줄 수 300 이하 단순 FL만 검사
+  LINE_COUNT=$(wc -l < "$PREPROCESSED" 2>/dev/null || echo 999)
+  if [ "$LINE_COUNT" -le 300 ]; then
+    PARENS_OUT=$(timeout 3 python3 "$CHECK_PARENS" "$PREPROCESSED" 2>&1)
+    PARENS_EXIT=$?
+    if [ $PARENS_EXIT -eq 124 ]; then
+      echo "   ⚠️  괄호 검사 타임아웃 → cgc-bin 파서가 최종 판단"
+    elif [ $PARENS_EXIT -ne 0 ]; then
+      echo "$PARENS_OUT"
+      echo "❌ 사전 검사 실패 — 컴파일 중단"
+      rm -f "$PREPROCESSED"
+      exit 1
+    else
+      echo "$PARENS_OUT"
+    fi
+  else
+    echo "   ✅ ${LINE_COUNT}줄 — cgc-bin 파서로 직접 검사 (문자열 내 코드 포함 파일)"
   fi
 fi
 
@@ -386,6 +437,7 @@ CORE_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
   $RUNTIME_DIR/sqlite.c $RUNTIME_DIR/debug.c $RUNTIME_DIR/gc.c \
   $RUNTIME_DIR/jit.c $RUNTIME_DIR/fx-builtin-shim.c \
   $RUNTIME_DIR/regex.c $RUNTIME_DIR/smtp.c $RUNTIME_DIR/pdf_ttf.c $RUNTIME_DIR/pdf_img.c \
+  $RUNTIME_DIR/net.c \
   $RUNTIME_DIR/builtins-shim.c"
 
 if [ -f "$RUNTIME_DIR/mariadb.c" ]; then
@@ -396,7 +448,7 @@ fi
 # ── libfx.a 캐시 (런타임 변경 시에만 재빌드) ─────────────────────
 LIBFX_A="$RUNTIME_DIR/libfx.a"
 LIBFX_HASH_FILE="$RUNTIME_DIR/.libfx_hash"
-CURRENT_HASH=$(md5sum $CORE_SRCS "$RUNTIME_DIR/runtime.h" 2>/dev/null | md5sum | cut -d' ' -f1)
+CURRENT_HASH=$(md5sum $CORE_SRCS "$RUNTIME_DIR/runtime.h" "$SCRIPT_REAL" 2>/dev/null | md5sum | cut -d' ' -f1)
 
 if [ ! -f "$LIBFX_A" ] || [ "$(cat "$LIBFX_HASH_FILE" 2>/dev/null)" != "${CURRENT_HASH}_${NO_NET}" ]; then
   echo "   📦 libfx.a 빌드 중... (런타임 변경 감지)"
@@ -407,6 +459,7 @@ if [ ! -f "$LIBFX_A" ] || [ "$(cat "$LIBFX_HASH_FILE" 2>/dev/null)" != "${CURREN
     gcc -O2 -c "$src" -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$obj" &
   done
   wait
+  rm -f "$LIBFX_A"
   ar rcs "$LIBFX_A" "$OBJ_DIR"/*.o
   rm -rf "$OBJ_DIR"
   echo "${CURRENT_HASH}_${NO_NET}" > "$LIBFX_HASH_FILE"
@@ -432,14 +485,15 @@ APP_HASH=$(md5sum "$PREPROCESSED" 2>/dev/null | cut -d' ' -f1)
 if [ ! -f "$APP_O" ] || [ "$(cat "$APP_HASH_FILE" 2>/dev/null)" != "${APP_HASH}_${NO_NET}" ]; then
   echo "   🔧 app.o 컴파일 중..."
   if gcc -O2 -c -Werror=implicit-function-declaration "$C_FILE" \
-    -I "$RUNTIME_DIR" $EXTRA_CFLAGS -w -o "$APP_O" 2>/tmp/fl_app_gcc_$$.log; then
+    -I "$RUNTIME_DIR" $EXTRA_CFLAGS -o "$APP_O" 2>/tmp/fl_app_gcc_$$.log; then
     echo "${APP_HASH}_${NO_NET}" > "$APP_HASH_FILE"
     echo "   ✅ app.o 완성 (이후 빌드는 재사용)"
   else
-    # 컴파일 실패 → 캐시된 .o 삭제 후 에러 출력 (Stage 4 파서로 위임)
     rm -f "$APP_O" "$APP_HASH_FILE"
-    cat /tmp/fl_app_gcc_$$.log >> /tmp/fl_gcc_placeholder_$$.log 2>/dev/null || true
-    mv /tmp/fl_app_gcc_$$.log /tmp/fl_gcc_placeholder_$$.log
+    echo "❌ app.o 컴파일 실패:"
+    cat /tmp/fl_app_gcc_$$.log
+    rm -f "$C_FILE" "$PREPROCESSED" /tmp/fl_app_gcc_$$.log
+    exit 1
   fi
   rm -f /tmp/fl_app_gcc_$$.log 2>/dev/null || true
 else

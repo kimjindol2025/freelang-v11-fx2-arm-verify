@@ -203,13 +203,23 @@ static void json_stringify_buf(FLValue v, JBuf* b) {
         jbuf_ensure(b, s->len * 6 + 4);
         b->data[b->pos++] = '"';
         for (uint32_t i = 0; i < s->len; i++) {
-            char c = s->data[i];
+            unsigned char c = (unsigned char)s->data[i];
             if      (c == '"')  { b->data[b->pos++]='\\'; b->data[b->pos++]='"';  }
             else if (c == '\\') { b->data[b->pos++]='\\'; b->data[b->pos++]='\\'; }
             else if (c == '\n') { b->data[b->pos++]='\\'; b->data[b->pos++]='n';  }
             else if (c == '\t') { b->data[b->pos++]='\\'; b->data[b->pos++]='t';  }
             else if (c == '\r') { b->data[b->pos++]='\\'; b->data[b->pos++]='r';  }
-            else                { b->data[b->pos++] = c; }
+            else if (c < 0x20) {
+                /* JSON 스펙: 0x00-0x1F는 전부 이스케이프 필수 (ANSI ESC 등).
+                 * 스택 버퍼에 먼저 만들어서 정확히 6바이트만 복사 —
+                 * snprintf의 null 종단자가 b->data 예산(char당 6바이트)을
+                 * 넘겨쓰지 않도록. */
+                char esc[7];
+                snprintf(esc, sizeof(esc), "\\u%04x", c);
+                memcpy(b->data + b->pos, esc, 6);
+                b->pos += 6;
+            }
+            else                { b->data[b->pos++] = (char)c; }
         }
         b->data[b->pos++] = '"';
         return;

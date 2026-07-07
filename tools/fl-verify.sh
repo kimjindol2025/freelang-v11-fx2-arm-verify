@@ -4,7 +4,7 @@
 set -e
 
 ROOT_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-BOOTSTRAP="${BOOTSTRAP:-/root/freelang-v11/bootstrap.js}"
+BOOTSTRAP="${BOOTSTRAP:-/home/kimjin/freelang-v11/bootstrap.js}"
 
 mode="${1:-official}"
 shift || true
@@ -89,4 +89,3 @@ case "$mode" in
     exit 1
     ;;
 esac
-

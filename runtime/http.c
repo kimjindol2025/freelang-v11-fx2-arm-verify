@@ -161,11 +161,56 @@ FLValue server_html(FLValue html) {
     return make_response(200, "text/html; charset=utf-8", strval(html));
 }
 
+/* 확장자 → MIME */
+static const char* mime_of(const char* path) {
+    const char* e = strrchr(path, '.');
+    if (!e) return "application/octet-stream";
+    if (!strcasecmp(e,".png"))  return "image/png";
+    if (!strcasecmp(e,".jpg")||!strcasecmp(e,".jpeg")) return "image/jpeg";
+    if (!strcasecmp(e,".gif"))  return "image/gif";
+    if (!strcasecmp(e,".webp")) return "image/webp";
+    if (!strcasecmp(e,".svg"))  return "image/svg+xml";
+    if (!strcasecmp(e,".ico"))  return "image/x-icon";
+    if (!strcasecmp(e,".css"))  return "text/css; charset=utf-8";
+    if (!strcasecmp(e,".js"))   return "application/javascript";
+    if (!strcasecmp(e,".pdf"))  return "application/pdf";
+    if (!strcasecmp(e,".html")||!strcasecmp(e,".htm")) return "text/html; charset=utf-8";
+    if (!strcasecmp(e,".json")) return "application/json; charset=utf-8";
+    if (!strcasecmp(e,".txt"))  return "text/plain; charset=utf-8";
+    if (!strcasecmp(e,".xml"))  return "application/xml; charset=utf-8";
+    return "application/octet-stream";
+}
+
+/* server-file: 파일을 바이너리로 읽어 확장자별 Content-Type으로 서빙 */
+FLValue server_file(FLValue path_v) {
+    const char* path = strval(path_v);
+    FILE* f = fopen(path, "rb");
+    if (!f) return make_response(404, "application/json; charset=utf-8", "{\"error\":\"not found\"}");
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz < 0) { fclose(f); return make_response(500, "application/json; charset=utf-8", "{\"error\":\"read\"}"); }
+    char* buf = (char*)malloc(sz > 0 ? sz : 1);
+    size_t rd = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    FLValue headers = fl_map_new();
+    headers = fl_map_set(headers, fl_str_val("Content-Type"), fl_str_val(mime_of(path)));
+    FLValue resp = fl_map_new();
+    resp = fl_map_set(resp, fl_str_val(K_STATUS),  fl_int(200));
+    resp = fl_map_set(resp, fl_str_val(K_BODY),    fl_str_val_n(buf, (uint32_t)rd));
+    resp = fl_map_set(resp, fl_str_val(K_HEADERS), headers);
+    free(buf);
+    return resp;
+}
+
 FLValue server_text(FLValue text) {
     return make_response(200, "text/plain; charset=utf-8", strval(text));
 }
 
-FLValue server_json(FLValue json_str) {
+FLValue server_json(FLValue data) {
+    FLValue json_str = (data.tag == FL_MAP || data.tag == FL_VECTOR)
+        ? json_stringify(data)
+        : data;
     return make_response(200, "application/json; charset=utf-8", strval(json_str));
 }
 
@@ -392,6 +437,7 @@ static const char* status_text(int code) {
 static void send_response(int client_fd, FLValue resp, int keep_alive) {
     int    status  = 200;
     const char* body    = "";
+    uint32_t body_len   = 0;   /* FLString len (바이너리 안전) */
     const char* ctype   = "text/plain";
     char   extra_headers[2048] = "";
 
@@ -400,7 +446,7 @@ static void send_response(int client_fd, FLValue resp, int keep_alive) {
         if (sv.tag == FL_INT) status = (int)sv.i;
 
         FLValue bv = fl_map_get(resp, fl_str_val(K_BODY));
-        if (bv.tag == FL_STRING) body = strval(bv);
+        if (bv.tag == FL_STRING) { body = strval(bv); body_len = ((FLString*)bv.obj)->len; }
 
         FLValue hv = fl_map_get(resp, fl_str_val(K_HEADERS));
         if (hv.tag == FL_MAP) {
@@ -419,10 +465,13 @@ static void send_response(int client_fd, FLValue resp, int keep_alive) {
         }
     } else if (resp.tag == FL_STRING) {
         body  = strval(resp);
+        body_len = ((FLString*)resp.obj)->len;
         ctype = "text/html; charset=utf-8";
     }
 
+    /* 텍스트는 strlen, 바이너리(null 포함)는 FLString len — 둘 중 큰 값 */
     size_t blen = strlen(body);
+    if (body_len > blen) blen = body_len;
     char header_buf[4096];
     snprintf(header_buf, sizeof(header_buf),
         "HTTP/1.1 %d %s\r\n"
@@ -476,6 +525,36 @@ static FLValue make_req_map(HttpRequest* hr, FLValue params) {
         }
     }
 
+    /* 쿠키 파싱 — Cookie: key1=val1; key2=val2 → 맵 */
+    FLValue cookies = fl_map_new();
+    {
+        const char* cookie_hdr = NULL;
+        for (int i = 0; i < hr->nheaders; i++) {
+            if (strcasecmp(hr->headers[i][0], "cookie") == 0) {
+                cookie_hdr = hr->headers[i][1]; break;
+            }
+        }
+        if (cookie_hdr) {
+            char* buf = strdup(cookie_hdr);
+            char* tok = strtok(buf, ";");
+            while (tok) {
+                while (*tok == ' ') tok++;  /* 앞 공백 제거 */
+                char* eq = strchr(tok, '=');
+                if (eq) {
+                    *eq = '\0';
+                    char* k = tok;
+                    char* v = eq + 1;
+                    /* 끝 공백 제거 */
+                    size_t klen = strlen(k);
+                    while (klen > 0 && k[klen-1] == ' ') k[--klen] = '\0';
+                    cookies = fl_map_set(cookies, fl_str_val(k), fl_str_val(v));
+                }
+                tok = strtok(NULL, ";");
+            }
+            free(buf);
+        }
+    }
+
     FLValue req = fl_map_new();
     req = fl_map_set(req, fl_str_val("method"),  fl_str_val(hr->method));
     req = fl_map_set(req, fl_str_val("path"),    fl_str_val(hr->path));
@@ -483,6 +562,7 @@ static FLValue make_req_map(HttpRequest* hr, FLValue params) {
     req = fl_map_set(req, fl_str_val("params"),  params);
     req = fl_map_set(req, fl_str_val("headers"), headers);
     req = fl_map_set(req, fl_str_val("body"),    body);
+    req = fl_map_set(req, fl_str_val("cookies"), cookies);
     return req;
 }
 
@@ -1060,7 +1140,14 @@ FLValue fl_http_start(FLValue port) { return server_start(port); }
 
 /* ── fl_resp_* alias — kebab-case response 함수 ── */
 FLValue fl_resp_html(FLValue html)              { return server_html(html); }
-FLValue fl_resp_json(FLValue json)              { return server_json(json); }
+FLValue fl_resp_json(FLValue data) {
+    /* 맵/벡터이면 자동 json_stringify 후 전달 */
+    if (data.tag == FL_MAP || data.tag == FL_VECTOR) {
+        FLValue json = json_stringify(data);
+        return server_json(json);
+    }
+    return server_json(data);
+}
 FLValue fl_resp_text(FLValue text)              { return server_text(text); }
 FLValue fl_resp_status(FLValue code, FLValue b) { return server_status(code, b); }
 FLValue fl_resp_redirect(FLValue url)           { return server_redirect(url); }
