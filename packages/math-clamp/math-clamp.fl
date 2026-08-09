@@ -1,6 +1,11 @@
 ;; packages/math-clamp/math-clamp.fl
-;; 자동 생성된 패키지 래퍼
-
-(defn math-clamp [& args]
-  ;; 런타임 구현 placeholder
-  nil)
+;; math-clamp 패키지 C 구현(현재 런타임 Shim과 충돌하던 구현)
+;; 런타임 Shim 충돌 회피를 위해 user-fns shim 제거 전제로
+;; C 타입/링크 모두에서 직접 math-clamp 구현을 사용
+;; 값이 min~max 범위를 벗어나면 clamp
+(defn math-clamp [$value $min $max]
+  (if (< $value $min)
+    $min
+    (if (> $value $max)
+      $max
+      $value)))

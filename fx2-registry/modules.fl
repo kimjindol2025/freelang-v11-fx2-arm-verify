@@ -1,9 +1,9 @@
 ;; modules.fl — fx2 패키지 관리 로직
 ;; 패키지 로드, 빌드, 설치, 제거
 
-;; 환경변수 읽기 — fl-env-get은 bootstrap.js에서 미구현이므로 shell-exec 사용
+;; 환경변수 읽기 — fl-env-get은 bootstrap.js에서 미구현이므로 shell-run 사용
 (defn read-env [$key $default]
-  (let [$v (str-trim (or (shell-exec (str "printenv " $key " 2>/dev/null")) ""))]
+  (let [$v (str-trim (or (shell-run (str "printenv " $key " 2>/dev/null")) ""))]
     (if (= $v "") $default $v)))
 
 (define FX2_DIR (read-env "FX2_DIR" "/home/kimjin/freelang-v11-fx2"))
@@ -12,6 +12,7 @@
 (define INSTALLED_FILE  (str FX2_DIR "/runtime/installed.json"))
 (define GEN_SCRIPT      (str FX2_DIR "/fl-pkg-gen-c.py"))
 (define FL_BOOTSTRAP    (str FL_DIR "/bootstrap.js"))
+(define FL_BUILD        (str FX2_DIR "/fl-build.sh"))
 
 ;; ─── 설치 목록 I/O ────────────────────────────────────────────
 (defn read-installed []
@@ -26,19 +27,19 @@
 
 ;; ─── user-fns.c 재생성 ─────────────────────────────────────────
 (defn regen-user-fns []
-  (let [$out (shell-exec (str "python3 " GEN_SCRIPT " " FX2_DIR " 2>&1"))]
+  (let [$out (shell-run (str "python3 " GEN_SCRIPT " " FX2_DIR " 2>&1"))]
     (try (json-parse $out) (catch $e {"ok" false "error" (or $out "스크립트 실패")}))))
 
 ;; ─── packages/ 디렉토리 목록 ────────────────────────────────────
-;; shell-exec "ls" + str-split 사용 (bootstrap.js에 file-list 미구현)
+;; shell-run "ls" + str-split 사용 (bootstrap.js에 file-list 미구현)
 (defn load-all-packages []
-  (let [$raw (shell-exec (str "ls " PACKAGES_DIR " 2>/dev/null"))
+  (let [$raw (shell-run (str "ls " PACKAGES_DIR " 2>/dev/null"))
         $all (filter (fn [$s] (not (= $s "")))
                (str-split (or $raw "") "\n"))]
     (filter (fn [$d]
       (and
         (not (str-starts-with $d "."))
-        (file-is-dir (str PACKAGES_DIR "/" $d))))
+        (file-exists (str PACKAGES_DIR "/" $d))))
       $all)))
 
 ;; ─── 패키지 메타데이터 파싱 ────────────────────────────────────
@@ -50,7 +51,7 @@
 
 ;; ─── 설치 여부 확인 헬퍼 ────────────────────────────────────────
 (defn pkg-installed? [$installed $name]
-  (not (nil? (some (fn [$n] (if (= $n $name) true nil)) $installed))))
+  (not (= 0 (length (filter (fn [$n] (= $n $name)) $installed)))))
 
 ;; ─── 전체 패키지 목록 (installed 상태 포함) ────────────────────
 (defn list-packages []
@@ -117,14 +118,27 @@
                 $fl-src  (if (file-exists $pkg-fl) (file-read $pkg-fl) "")
                 $full    (str $fl-src "\n" $test-code)
                 $tmp     (str "/tmp/fx2-test-" $name ".fl")
-                $_ (file-write $tmp $full)
-                $cmd (str "timeout 10 node " FL_BOOTSTRAP " run " $tmp " 2>&1")
-                $out (shell-exec $cmd)]
-            {"ok"     true
-             "name"   $name
-             "output" (or $out "")
-             "passed" (not (str-includes (or $out "") "오류"))}))))))
-
+                $bin     (str "/tmp/fx2-test-" $name "-bin")
+                $build-log (str "/tmp/fx2-test-" $name ".build.log")
+                $build-exit-log (str "/tmp/fx2-test-" $name ".build.exit")
+                $run-log (str "/tmp/fx2-test-" $name ".run.log")
+                $run-exit-log (str "/tmp/fx2-test-" $name ".run.exit")
+                $_write (file-write $tmp $full)
+                $_build (shell-run (str "timeout 10 " FL_BUILD " " $tmp " " $bin " --no-net >" $build-log " 2>&1; echo $? >" $build-exit-log))
+                $build-exit (str-trim (or (file-read $build-exit-log) "1"))
+                $build-output (or (file-read $build-log) "")]
+            (if (not (= $build-exit "0"))
+              {"ok" false
+               "name" $name
+               "output" $build-output
+               "passed" false}
+              (let [$_run (shell-run (str "timeout 10 " $bin " >" $run-log " 2>&1; echo $? >" $run-exit-log))
+                    $run-exit (str-trim (or (file-read $run-exit-log) "1"))
+                    $run-output (or (file-read $run-log) "")]
+                {"ok" (= $run-exit "0")
+                 "name" $name
+                 "output" $run-output
+                 "passed" (and (= $run-exit "0") (not (str-includes $run-output "오류")))}))))))))
 ;; ─── 설치된 패키지만 ────────────────────────────────────────────
 (defn list-installed []
   (filter (fn [$p] (get $p "installed")) (list-packages)))

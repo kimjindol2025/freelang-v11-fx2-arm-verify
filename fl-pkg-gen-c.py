@@ -47,7 +47,7 @@ def main():
             sys.exit(1)
 
     # 패키지 C body 수집
-    fn_sections = []   # (name, arity, body)
+    fn_sections = []   # (name, arity, body, skip_shim)
     missing     = []
     for pkg_name in installed:
         meta_path = os.path.join(packages_dir, pkg_name, "metadata.json")
@@ -61,13 +61,13 @@ def main():
                 continue
         try:
             pkg = json.load(open(meta_path))
-            fn_sections.append((pkg_name, pkg.get("args", 1), pkg.get("body", "")))
+            fn_sections.append((pkg_name, pkg.get("args", 1), pkg.get("body", ""), bool(pkg.get("skipRuntimeShim"))))
         except Exception as e:
             missing.append(pkg_name)
 
     # user-fns.c 생성
     out = [HEADER, "/* FL:USER_SECTION:BEGIN */"]
-    for name, arity, body in fn_sections:
+    for name, arity, body, _skip_shim in fn_sections:
         out.append(f"/* FL:FN:{name} */")
         out.append(body.strip())
         out.append("/* FL:FN_END */")
@@ -77,11 +77,13 @@ def main():
 
     # SHIM_SECTION — cgc-bin이 kebab 이름을 snake_case로 호출
     out.append("/* FL:SHIM_SECTION:BEGIN */")
-    for name, arity, _ in fn_sections:
+    for name, arity, _, skip_shim in fn_sections:
         c_name    = "ufl_" + name.replace("-", "_")
         shim_name = name.replace("-", "_")
         args_def  = ", ".join(f"FLValue a{i}" for i in range(arity))
         args_call = ", ".join(f"a{i}" for i in range(arity))
+        if skip_shim:
+            continue
         out.append(f"/* FL:SHIM_FN:{name} */")
         if arity == 0:
             out.append(f"FLValue {shim_name}(void) {{ return {c_name}(); }}")
