@@ -9,6 +9,54 @@ set -e
 SCRIPT_REAL="$(readlink -f "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_REAL")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
+FL_STR_SPLIT_SRC="$SCRIPT_DIR/fl-str-split.c"
+FL_STR_SPLIT_BIN="$SCRIPT_DIR/.fl-str-split"
+FL_MODULE_PARSE_SRC="$SCRIPT_DIR/fl-module-parse.c"
+FL_MODULE_PARSE_BIN="$SCRIPT_DIR/.fl-module-parse"
+
+build_fl_str_split() {
+  if [ -x "$FL_STR_SPLIT_BIN" ] && [ "$FL_STR_SPLIT_BIN" -nt "$FL_STR_SPLIT_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_STR_SPLIT_SRC" -o "$FL_STR_SPLIT_BIN" 2>/tmp/fl-str-split-build.log; then
+    echo "[fl-build] fl-str-split.c build failed" >&2
+    cat /tmp/fl-str-split-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_str_split() {
+  local input_file="$1"
+  if build_fl_str_split && "$FL_STR_SPLIT_BIN" "$input_file"; then
+    return 0
+  fi
+
+  echo "[fl-build] fl-str-split skipped (non-fatal)" >&2
+  return 1
+}
+
+build_fl_module_parse() {
+  if [ -x "$FL_MODULE_PARSE_BIN" ] && [ "$FL_MODULE_PARSE_BIN" -nt "$FL_MODULE_PARSE_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_MODULE_PARSE_SRC" -o "$FL_MODULE_PARSE_BIN" 2>/tmp/fl-module-parse-build.log; then
+    echo "[fl-build] fl-module-parse.c build failed" >&2
+    cat /tmp/fl-module-parse-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_module_parse() {
+  local input_file="$1"
+  if build_fl_module_parse && "$FL_MODULE_PARSE_BIN" "$input_file"; then
+    return 0
+  fi
+
+  echo "[fl-build] fl-module-parse skipped (non-fatal)" >&2
+  return 1
+}
 
 pick_cgc_bin() {
   if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
@@ -88,11 +136,12 @@ echo "   출력: $OUTPUT"
 echo ""
 
 # ─── 0. module declaration 처리 ──────────────────────────────────
-MODULE_JSON=$(python3 "$SCRIPT_DIR/fl-module-parse.py" "$FL_INPUT" 2>/dev/null || true)
+MODULE_JSON=$(run_fl_module_parse "$FL_INPUT" 2>/dev/null || true)
 if [ -n "$MODULE_JSON" ]; then
-  MODULE_NAME=$(echo "$MODULE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))")
-  USE_PROFILES=$(echo "$MODULE_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(' '.join(d.get('use', [])))")
-  MODULE_VER=$(echo "$MODULE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version',''))")
+  MODULE_NAME=$(printf '%s' "$MODULE_JSON" | sed 's/.*"name":"\([^\"]*\)".*/\1/')
+  MODULE_VER=$(printf '%s' "$MODULE_JSON" | sed 's/.*"version":"\([^\"]*\)".*/\1/')
+  USE_LIST=$(printf '%s' "$MODULE_JSON" | sed -n 's/.*"use":\[\([^]]*\)\].*/\1/p')
+  USE_PROFILES=$(printf '%s' "$USE_LIST" | tr -d '"' | tr ',' ' ')
 
   echo "📦 module: $MODULE_NAME v$MODULE_VER"
   if [ -n "$USE_PROFILES" ]; then
@@ -175,7 +224,7 @@ print(f"[fl-build] 전처리 완료", file=sys.stderr)
 PYEOF
 
 # 긴 문자열 자동 분할 (>900B)
-python3 "$SCRIPT_DIR/fl-str-split.py" "$PREPROCESSED" 2>&1 || true
+run_fl_str_split "$PREPROCESSED" 2>&1 || true
 
 # ─── 2. 사전 검사 ────────────────────────────────────────────────
 CHECK_PARENS="/home/kimjin/freelang-v11/scripts/check-parens.py"
