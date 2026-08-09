@@ -710,17 +710,17 @@ FLValue pdf_img_load(FLValue path);
 FLValue pdf_img_obj(FLValue img, FLValue obj_id);
 
 /* FL:EXTERN_SECTION:BEGIN */
-FLValue str_lines(FLValue a0);
-FLValue str_count(FLValue a0, FLValue a1);
-FLValue math_lerp(FLValue a0, FLValue a1, FLValue a2);
-FLValue math_round_n(FLValue a0, FLValue a1);
-FLValue math_sign(FLValue a0);
-FLValue path_dirname(FLValue a0);
-FLValue str_indent(FLValue a0, FLValue a1);
-FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2);
-FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2);
-FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2);
-FLValue time_now_ms(void);
-FLValue time_elapsed(FLValue a0);
-FLValue path_basename(FLValue a0);
+extern FLValue str_lines;
+extern FLValue str_count;
+extern FLValue math_lerp;
+extern FLValue math_round_n;
+extern FLValue math_sign;
+extern FLValue path_dirname;
+extern FLValue str_indent;
+extern FLValue str_truncate;
+extern FLValue str_rpad;
+extern FLValue math_clamp;
+extern FLValue time_now_ms;
+extern FLValue time_elapsed;
+extern FLValue path_basename;
 /* FL:EXTERN_SECTION:END */

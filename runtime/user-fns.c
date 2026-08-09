@@ -215,9 +215,6 @@ FLValue str_truncate(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_trunca
 /* FL:SHIM_FN:str-rpad */
 FLValue str_rpad(FLValue a0, FLValue a1, FLValue a2) { return ufl_str_rpad(a0, a1, a2); }
 /* FL:SHIM_FN_END */
-/* FL:SHIM_FN:math-clamp */
-FLValue math_clamp(FLValue a0, FLValue a1, FLValue a2) { return ufl_math_clamp(a0, a1, a2); }
-/* FL:SHIM_FN_END */
 /* FL:SHIM_FN:time-now-ms */
 FLValue time_now_ms(void) { return ufl_time_now_ms(); }
 /* FL:SHIM_FN_END */
