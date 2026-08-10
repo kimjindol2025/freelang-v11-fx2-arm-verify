@@ -13,6 +13,10 @@ FL_STR_SPLIT_SRC="$SCRIPT_DIR/fl-str-split.c"
 FL_STR_SPLIT_BIN="$SCRIPT_DIR/.fl-str-split"
 FL_MODULE_PARSE_SRC="$SCRIPT_DIR/fl-module-parse.c"
 FL_MODULE_PARSE_BIN="$SCRIPT_DIR/.fl-module-parse"
+FL_RESOLVE_DEPS_SRC="$SCRIPT_DIR/fl-resolve-deps-profiles.c"
+FL_RESOLVE_DEPS_BIN="$SCRIPT_DIR/.fl-resolve-deps-profiles"
+FL_USER_FNS_GEN_SRC="$SCRIPT_DIR/fl-generate-user-fns.c"
+FL_USER_FNS_GEN_BIN="$SCRIPT_DIR/.fl-generate-user-fns"
 
 build_fl_str_split() {
   if [ -x "$FL_STR_SPLIT_BIN" ] && [ "$FL_STR_SPLIT_BIN" -nt "$FL_STR_SPLIT_SRC" ]; then
@@ -58,7 +62,64 @@ run_fl_module_parse() {
   return 1
 }
 
+build_fl_resolve_deps_profiles() {
+  if [ -x "$FL_RESOLVE_DEPS_BIN" ] && [ "$FL_RESOLVE_DEPS_BIN" -nt "$FL_RESOLVE_DEPS_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_RESOLVE_DEPS_SRC" -o "$FL_RESOLVE_DEPS_BIN" 2>/tmp/fl-resolve-deps-build.log; then
+    echo "[fl-build] fl-resolve-deps-profiles.c build failed" >&2
+    cat /tmp/fl-resolve-deps-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_resolve_deps_profiles() {
+  local -a profile_names=("$@")
+  if build_fl_resolve_deps_profiles && "$FL_RESOLVE_DEPS_BIN" "$SCRIPT_DIR" "${profile_names[@]}"; then
+    return 0
+  fi
+
+  echo "[fl-build] fl-resolve-deps 단계 실패" >&2
+  return 1
+}
+
+run_fl_resolve_deps_metadata() {
+  local output_file="$1"
+  shift
+  local -a package_names=("$@")
+  if build_fl_resolve_deps_profiles && "$FL_RESOLVE_DEPS_BIN" --metadata "$SCRIPT_DIR" "${package_names[@]}" > "$output_file"; then
+    return 0
+  fi
+
+  echo "[fl-build] fl-resolve-deps metadata 단계 실패" >&2
+  return 1
+}
+
+build_fl_user_fns_gen() {
+  if [ -x "$FL_USER_FNS_GEN_BIN" ] && [ "$FL_USER_FNS_GEN_BIN" -nt "$FL_USER_FNS_GEN_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_USER_FNS_GEN_SRC" -o "$FL_USER_FNS_GEN_BIN" 2>/tmp/fl-generate-user-fns-build.log; then
+    echo "[fl-build] fl-generate-user-fns.c build failed" >&2
+    cat /tmp/fl-generate-user-fns-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_generate_user_fns() {
+  local metadata_file="$1"
+  if build_fl_user_fns_gen && "$FL_USER_FNS_GEN_BIN" "$SCRIPT_DIR" "$metadata_file"; then
+    return 0
+  fi
+
+  echo "[fl-build] user-fns 생성 단계 실패" >&2
+  return 1
+}
+
 pick_cgc_bin() {
+
   if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
     echo "$CGC_BIN"
     return 0
@@ -147,7 +208,19 @@ if [ -n "$MODULE_JSON" ]; then
   if [ -n "$USE_PROFILES" ]; then
     echo "   :use → $USE_PROFILES"
     echo "   의존성 해결 중..."
-    python3 "$SCRIPT_DIR/fl-resolve-deps.py" $USE_PROFILES "$SCRIPT_DIR"
+    pkg_file="$(mktemp)"
+    if ! run_fl_resolve_deps_profiles $USE_PROFILES > "$pkg_file"; then
+      rm -f "$pkg_file"
+      exit 1
+    fi
+    mapfile -t RESOLVE_PACKAGES < "$pkg_file"
+    metadata_file="$(mktemp)"
+    if ! run_fl_resolve_deps_metadata "$metadata_file" "${RESOLVE_PACKAGES[@]}"; then
+      rm -f "$metadata_file" "$pkg_file"
+      exit 1
+    fi
+    run_fl_generate_user_fns "$metadata_file"
+    rm -f "$pkg_file" "$metadata_file"
     echo ""
   fi
 fi
