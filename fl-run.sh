@@ -24,33 +24,31 @@ if [ ! -f "$TOML_FILE" ]; then
   exit 1
 fi
 
-# ── fx.toml 파싱 (Python) ─────────────────────────────────────
-eval "$(python3 << PYEOF
-import re, json
+# ── fx.toml 파싱 (native helper) ──────────────────────────────
+FL_TOML_PARSE_SRC="$FX2_DIR/fl-toml-parse.c"
+FL_TOML_PARSE_BIN="$FX2_DIR/.fl-toml-parse"
 
-with open('$TOML_FILE') as f:
-    content = f.read()
+build_fl_toml_parse() {
+  if [ -x "$FL_TOML_PARSE_BIN" ] && [ "$FL_TOML_PARSE_BIN" -nt "$FL_TOML_PARSE_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$FL_TOML_PARSE_SRC" -o "$FL_TOML_PARSE_BIN" 2>/tmp/fl-toml-parse-build.log; then
+    echo "[fl-run] fl-toml-parse.c build failed" >&2
+    cat /tmp/fl-toml-parse-build.log >&2
+    return 1
+  fi
+}
 
-# [project] 섹션
-name  = re.search(r'name\s*=\s*"([^"]+)"',  content)
-entry = re.search(r'entry\s*=\s*"([^"]+)"', content)
-port  = re.search(r'port\s*=\s*(\d+)',       content)
-out   = re.search(r'output\s*=\s*"([^"]+)"',content)
-
-print(f'FL_NAME={name.group(1) if name else "app"}')
-print(f'FL_ENTRY={entry.group(1) if entry else "main.fl"}')
-print(f'FL_PORT={port.group(1) if port else "0"}')
-print(f'FL_OUTPUT={out.group(1) if out else "app-bin"}')
-
-# packages 배열 파싱
-m = re.search(r'packages\s*=\s*\[(.*?)\]', content, re.DOTALL)
-pkgs = []
-if m:
-    raw = m.group(1)
-    pkgs = [p.strip().strip('"') for p in re.findall(r'"([^"]+)"', raw)]
-print(f"FL_PACKAGES='{json.dumps(pkgs)}'")
-PYEOF
-)"
+build_fl_toml_parse || exit 1
+FL_NAME=$($FL_TOML_PARSE_BIN --get project.name "$TOML_FILE")
+FL_ENTRY=$($FL_TOML_PARSE_BIN --get project.entry "$TOML_FILE")
+FL_PORT=$($FL_TOML_PARSE_BIN --get project.port "$TOML_FILE")
+FL_OUTPUT=$($FL_TOML_PARSE_BIN --get project.output "$TOML_FILE")
+mapfile -t FL_PACKAGES < <($FL_TOML_PARSE_BIN --get-array-lines runtime.packages "$TOML_FILE")
+[ -n "$FL_NAME" ] || FL_NAME="app"
+[ -n "$FL_ENTRY" ] || FL_ENTRY="main.fl"
+[ -n "$FL_PORT" ] || FL_PORT="0"
+[ -n "$FL_OUTPUT" ] || FL_OUTPUT="app-bin"
 
 echo "────────────────────────────────────────"
 echo " fl run — $FL_NAME"
@@ -60,35 +58,23 @@ echo ""
 # ── 패키지 설치 ───────────────────────────────────────────────
 if [ "$CMD" = "run" ] || [ "$CMD" = "install" ] || [ "$CMD" = "build" ]; then
   echo "[install] 런타임 패키지 설치..."
-  python3 << PYEOF
-import json, urllib.request, sys
-
-pkgs = json.loads('$FL_PACKAGES')
-if not pkgs:
-    print("  (패키지 없음)")
-    sys.exit(0)
-
-ok_count = 0
-for name in pkgs:
-    payload = json.dumps({"name": name, "build": True}).encode()
-    req = urllib.request.Request(
-        "http://localhost:40330/fx/fns/import",
-        data=payload, headers={"Content-Type":"application/json"}, method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            d = json.loads(resp.read())
-            if d.get("ok"):
-                ms = (d.get("build") or {}).get("durationMs", "?")
-                print(f"  ✅ {name} ({ms}ms)")
-                ok_count += 1
-            else:
-                print(f"  ❌ {name} — {d.get('error','')}")
-    except Exception as e:
-        print(f"  ❌ {name} — {e}")
-
-print(f"\n  {ok_count}/{len(pkgs)} 패키지 설치 완료")
-PYEOF
+  if [ ${#FL_PACKAGES[@]} -eq 0 ]; then
+    echo "  (패키지 없음)"
+  else
+    ok_count=0
+    for name in "${FL_PACKAGES[@]}"; do
+      payload=$($FL_TOML_PARSE_BIN --run-pkg-import-payload "$name")
+      result=$(curl -s -X POST "http://localhost:40330/fx/fns/import"         -H "Content-Type: application/json" -d "$payload" 2>/dev/null)
+      result_file=$(mktemp)
+      printf '%s' "$result" > "$result_file"
+      "$FL_TOML_PARSE_BIN" --run-pkg-import-output "$name" "$result_file"
+      ok_flag=$($FL_TOML_PARSE_BIN --new-init-ok "$result_file" 2>/dev/null)
+      [ "$ok_flag" = "True" ] && ok_count=$((ok_count + 1))
+      rm -f "$result_file"
+    done
+    echo ""
+    echo "  ${ok_count}/${#FL_PACKAGES[@]} 패키지 설치 완료"
+  fi
   echo ""
 fi
 

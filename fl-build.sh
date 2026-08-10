@@ -13,10 +13,14 @@ FL_STR_SPLIT_SRC="$SCRIPT_DIR/fl-str-split.c"
 FL_STR_SPLIT_BIN="$SCRIPT_DIR/.fl-str-split"
 FL_MODULE_PARSE_SRC="$SCRIPT_DIR/fl-module-parse.c"
 FL_MODULE_PARSE_BIN="$SCRIPT_DIR/.fl-module-parse"
+FL_BUILD_PLAN_SRC="$SCRIPT_DIR/fl-build-plan.c"
+FL_BUILD_PLAN_BIN="$SCRIPT_DIR/.fl-build-plan"
 FL_RESOLVE_DEPS_SRC="$SCRIPT_DIR/fl-resolve-deps-profiles.c"
 FL_RESOLVE_DEPS_BIN="$SCRIPT_DIR/.fl-resolve-deps-profiles"
 FL_USER_FNS_GEN_SRC="$SCRIPT_DIR/fl-generate-user-fns.c"
 FL_USER_FNS_GEN_BIN="$SCRIPT_DIR/.fl-generate-user-fns"
+FL_BUILD_HELPER_SRC="$SCRIPT_DIR/fl-build-helper.c"
+FL_BUILD_HELPER_BIN="$SCRIPT_DIR/.fl-build-helper"
 
 build_fl_str_split() {
   if [ -x "$FL_STR_SPLIT_BIN" ] && [ "$FL_STR_SPLIT_BIN" -nt "$FL_STR_SPLIT_SRC" ]; then
@@ -26,6 +30,35 @@ build_fl_str_split() {
   if ! cc -O2 -std=c99 "$FL_STR_SPLIT_SRC" -o "$FL_STR_SPLIT_BIN" 2>/tmp/fl-str-split-build.log; then
     echo "[fl-build] fl-str-split.c build failed" >&2
     cat /tmp/fl-str-split-build.log >&2
+    return 1
+  fi
+}
+
+build_fl_module_parse() {
+  if [ -x "$FL_MODULE_PARSE_BIN" ] && [ "$FL_MODULE_PARSE_BIN" -nt "$FL_MODULE_PARSE_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_MODULE_PARSE_SRC" -o "$FL_MODULE_PARSE_BIN" 2>/tmp/fl-module-parse-build.log; then
+    echo "[fl-build] fl-module-parse.c build failed" >&2
+    cat /tmp/fl-module-parse-build.log >&2
+    return 1
+  fi
+}
+
+build_fl_build_plan() {
+  if [ -x "$FL_BUILD_PLAN_BIN" ] && [ "$FL_BUILD_PLAN_BIN" -nt "$FL_BUILD_PLAN_SRC" ]; then
+    build_fl_module_parse
+    return $?
+  fi
+
+  if ! build_fl_module_parse; then
+    return 1
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_BUILD_PLAN_SRC" -o "$FL_BUILD_PLAN_BIN" 2>/tmp/fl-build-plan-build.log; then
+    echo "[fl-build] fl-build-plan.c build failed" >&2
+    cat /tmp/fl-build-plan-build.log >&2
     return 1
   fi
 }
@@ -118,6 +151,25 @@ run_fl_generate_user_fns() {
   return 1
 }
 
+build_fl_build_helper() {
+  if [ -x "$FL_BUILD_HELPER_BIN" ] && [ "$FL_BUILD_HELPER_BIN" -nt "$FL_BUILD_HELPER_SRC" ]; then
+    return 0
+  fi
+
+  if ! cc -O2 -std=c99 "$FL_BUILD_HELPER_SRC" -o "$FL_BUILD_HELPER_BIN" 2>/tmp/fl-build-helper-build.log; then
+    echo "[fl-build] fl-build-helper.c build failed" >&2
+    cat /tmp/fl-build-helper-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_build_helper() {
+  if ! build_fl_build_helper; then
+    return 1
+  fi
+  "$FL_BUILD_HELPER_BIN" "$@"
+}
+
 pick_cgc_bin() {
 
   if [ -n "$CGC_BIN" ] && [ -x "$CGC_BIN" ]; then
@@ -187,7 +239,8 @@ if [ "$PLAN_MODE" = "1" ] || [ "$PLAN_MODE" = "check" ] || [ "$PLAN_MODE" = "gra
   MODE_ARG="plan"
   [ "$PLAN_MODE" = "check" ] && MODE_ARG="check"
   [ "$PLAN_MODE" = "graph" ] && MODE_ARG="graph"
-  python3 "$SCRIPT_DIR/fl-build-plan.py" "$FL_INPUT" "$SCRIPT_DIR" "$OUTPUT" "$MODE_ARG"
+  build_fl_build_plan || exit 1
+  "$FL_BUILD_PLAN_BIN" "$FL_INPUT" "$SCRIPT_DIR" "$OUTPUT" "$MODE_ARG"
   exit $?
 fi
 
@@ -198,6 +251,7 @@ echo ""
 
 # ─── 0. module declaration 처리 ──────────────────────────────────
 MODULE_JSON=$(run_fl_module_parse "$FL_INPUT" 2>/dev/null || true)
+HAS_USER_FNS=0
 if [ -n "$MODULE_JSON" ]; then
   MODULE_NAME=$(printf '%s' "$MODULE_JSON" | sed 's/.*"name":"\([^\"]*\)".*/\1/')
   MODULE_VER=$(printf '%s' "$MODULE_JSON" | sed 's/.*"version":"\([^\"]*\)".*/\1/')
@@ -220,6 +274,7 @@ if [ -n "$MODULE_JSON" ]; then
       exit 1
     fi
     run_fl_generate_user_fns "$metadata_file"
+    HAS_USER_FNS=1
     rm -f "$pkg_file" "$metadata_file"
     echo ""
   fi
@@ -229,85 +284,29 @@ fi
 # (load "path.fl") 를 파일 내용으로 인라인 치환
 PREPROCESSED="/tmp/fl_preprocessed_$$.fl"
 
-python3 << PYEOF
-import re, os, sys
-
-def strip_module_form(src):
-    """(module ...) 블록 제거 — cgc-bin은 module form 미지원"""
-    start = src.find('(module')
-    if start == -1:
-        return src
-    depth = 0
-    end = start
-    for i, ch in enumerate(src[start:], start):
-        if ch == '(':
-            depth += 1
-        elif ch == ')':
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    return src[:start] + "; [module form stripped by fl-build]\n" + src[end+1:]
-
-def inline_loads(path, visited=None, cycle_stack=None):
-    is_root = visited is None
-    if visited is None:
-        visited = set()
-    if cycle_stack is None:
-        cycle_stack = []
-    abs_path = os.path.abspath(path)
-    if abs_path in cycle_stack:
-        print(f"[fl-build] \u26a0\ufe0f  순환 의존 감지: {path}", file=sys.stderr)
-        return "; [fl-build] CYCLE DETECTED: " + path
-    if abs_path in visited:
-        return ""
-    visited.add(abs_path)
-    base_dir = os.path.dirname(abs_path)
-    try:
-        content = open(abs_path).read()
-    except:
-        print(f"; [fl-build] 경고: {path} 읽기 실패", file=sys.stderr)
-        return ""
-    if is_root:
-        content = strip_module_form(content)
-    result = []
-    for line in content.splitlines():
-        m = re.match(r'\s*\(load\s+"([^"]+)"\)', line) or \
-            re.match(r"\s*\(load\s+'([^']+)'\)", line)
-        if m:
-            load_path = m.group(1)
-            if not os.path.isabs(load_path):
-                load_path = os.path.join(base_dir, load_path)
-            print(f"; [fl-build] 인라인: {load_path}", file=sys.stderr)
-            result.append(f"; --- inlined: {load_path} ---")
-            result.append(inline_loads(load_path, visited, cycle_stack + [abs_path]))
-            result.append(f"; --- end inlined: {load_path} ---")
-        else:
-            result.append(line)
-    return "\n".join(result)
-
-output = inline_loads("$FL_INPUT")
-
-lines = output.splitlines()
-cleaned = [l for l in lines if not re.match(r'\s*\(println\s+"?\[DEBUG\]', l)]
-output = "\n".join(cleaned)
-
-open("$PREPROCESSED", "w").write(output)
-print(f"[fl-build] 전처리 완료", file=sys.stderr)
-PYEOF
+run_fl_build_helper --preprocess "$FL_INPUT" "$PREPROCESSED" || { rm -f "$PREPROCESSED"; exit 1; }
 
 # 긴 문자열 자동 분할 (>900B)
 run_fl_str_split "$PREPROCESSED" 2>&1 || true
 
 # ─── 2. 사전 검사 ────────────────────────────────────────────────
-CHECK_PARENS="/home/kimjin/freelang-v11/scripts/check-parens.py"
-if [ -f "$CHECK_PARENS" ]; then
+CHECK_PARENS_SRC="$SCRIPT_DIR/fl-check-parens.c"
+CHECK_PARENS_BIN="$SCRIPT_DIR/.fl-check-parens"
+if [ -f "$CHECK_PARENS_SRC" ]; then
+  if [ ! -x "$CHECK_PARENS_BIN" ] || [ "$CHECK_PARENS_BIN" -ot "$CHECK_PARENS_SRC" ]; then
+    if ! cc -O2 -std=c99 "$CHECK_PARENS_SRC" -o "$CHECK_PARENS_BIN" 2>/tmp/fl-check-parens-build.log; then
+      echo "[fl-build] fl-check-parens.c build failed" >&2
+      cat /tmp/fl-check-parens-build.log >&2
+      rm -f "$PREPROCESSED"
+      exit 1
+    fi
+  fi
   echo "🔍 괄호/브래킷 검사..."
   # CSS/JS/Python 문자열이 있는 파일은 false positive 위험 → cgc-bin이 최종 판단
   # 줄 수 300 이하 단순 FL만 검사
   LINE_COUNT=$(wc -l < "$PREPROCESSED" 2>/dev/null || echo 999)
   if [ "$LINE_COUNT" -le 300 ]; then
-    PARENS_OUT=$(timeout 3 python3 "$CHECK_PARENS" "$PREPROCESSED" 2>&1)
+    PARENS_OUT=$(timeout 3 "$CHECK_PARENS_BIN" "$PREPROCESSED" 2>&1)
     PARENS_EXIT=$?
     if [ $PARENS_EXIT -eq 124 ]; then
       echo "   ⚠️  괄호 검사 타임아웃 → cgc-bin 파서가 최종 판단"
@@ -326,102 +325,7 @@ fi
 
 # ─── 2.5. 시맨틱 분석 (Semi-static Linter) ─────────────────────────
 echo "🧠 시맨틱 분석..."
-SEMANTIC_ERRORS=0
-python3 - "$PREPROCESSED" << 'PYEOF'
-import sys, re
-
-src = open(sys.argv[1]).read()
-lines = src.splitlines()
-errors = []
-warnings = []
-
-# ── 헬퍼: 라인 번호 찾기 ─────────────────────────────────────────
-def find_line(pattern, start=0):
-    for i, l in enumerate(lines[start:], start+1):
-        if re.search(pattern, l):
-            return i
-    return 0
-
-# ── 1. SQL ? 개수 vs 인자 개수 불일치 ───────────────────────────
-# 패턴: (fxb-sqlite-*-p DB "sql..." [...]) 또는 (fxb-sqlite-exec-p DB "sql..." [...])
-sql_pat = re.compile(
-    r'\(fxb-sqlite-(?:query|exec)-p\s+\S+\s+"([^"]+)"\s+(\[.*?\])',
-    re.DOTALL
-)
-for m in sql_pat.finditer(src):
-    sql_str = m.group(1)
-    args_str = m.group(2)
-    q_count = sql_str.count('?')
-    # 배열 안 원소 수: $var 또는 "str" 또는 숫자
-    arg_items = re.findall(r'\$\w+|"[^"]*"|\d+', args_str)
-    arg_count = len(arg_items)
-    if q_count != arg_count:
-        line_no = src[:m.start()].count('\n') + 1
-        errors.append(
-            f"  📍 줄 {line_no}: SQL ? 개수({q_count}) ≠ 인자 개수({arg_count})\n"
-            f"     SQL: {sql_str[:60]}{'...' if len(sql_str)>60 else ''}\n"
-            f"     💡 배열 원소를 {q_count}개로 맞추세요"
-        )
-
-# ── 2. fxb-sqlite-query (비-p 버전)에 ? 포함 → SQL 인젝션 위험 ──
-unsafe_pat = re.compile(r'\(fxb-sqlite-query\s+\S+\s+"([^"]*\?[^"]*)"')
-for m in unsafe_pat.finditer(src):
-    line_no = src[:m.start()].count('\n') + 1
-    warnings.append(
-        f"  ⚠️  줄 {line_no}: fxb-sqlite-query 에 ? 포함 → SQL 인젝션 위험\n"
-        f"     💡 (fxb-sqlite-query-p DB sql [param ...]) 로 교체하세요"
-    )
-
-# ── 3. $var 정의 전 사용 (단순 스코프 분석) ──────────────────────
-# defn 파라미터와 let 바인딩 수집, 사용 시점과 비교
-defined = set()
-# 함수 파라미터 ($x $y ...)
-for m in re.finditer(r'\(defn\s+\S+\s+\[([^\]]*)\]', src):
-    for p in re.findall(r'\$(\w+)', m.group(1)):
-        defined.add(p)
-# let 바인딩 [$var expr]
-for m in re.finditer(r'\(let\s+\[([^\]]+)\]', src, re.DOTALL):
-    for p in re.findall(r'\$(\w+)', m.group(1).split(']')[0]):
-        defined.add(p)
-# fn 파라미터
-for m in re.finditer(r'\(fn\s+\[([^\]]*)\]', src):
-    for p in re.findall(r'\$(\w+)', m.group(1)):
-        defined.add(p)
-
-# ── 4. define 없는 전역 사용 감지 (보수적으로) ──────────────────
-defines = set(re.findall(r'\(define\s+(\$\w+)', src))
-# 전역에서 $로 시작하는 사용 중 define 없는 것 (false positive 많아 경고만)
-# → 이건 스킵 (CGC가 더 잘 잡음)
-
-# ── 5. (or nil "fallback") 패턴 — nil 전파 경고 ─────────────────
-# nil이 첫 인자로 직접 오면 의미 없음
-nil_or_pat = re.compile(r'\(or\s+nil\s+')
-for m in nil_or_pat.finditer(src):
-    line_no = src[:m.start()].count('\n') + 1
-    warnings.append(
-        f"  ⚠️  줄 {line_no}: (or nil ...) — 첫 인자가 nil 리터럴\n"
-        f"     💡 (or $var fallback) 패턴을 확인하세요"
-    )
-
-# ── 출력 ─────────────────────────────────────────────────────────
-has_error = len(errors) > 0
-
-if errors:
-    print(f"❌ 시맨틱 오류 {len(errors)}개:")
-    for e in errors:
-        print(e)
-if warnings:
-    print(f"⚠️  시맨틱 경고 {len(warnings)}개:")
-    for w in warnings:
-        print(w)
-if not errors and not warnings:
-    print("   ✅ 시맨틱 OK")
-
-sys.exit(1 if has_error else 0)
-PYEOF
-
-SEMANTIC_EXIT=$?
-if [ "$SEMANTIC_EXIT" -ne 0 ]; then
+if ! run_fl_build_helper --semantic "$PREPROCESSED"; then
   echo "❌ 시맨틱 분석 실패 — 컴파일 중단"
   rm -f "$PREPROCESSED"
   exit 1
@@ -488,54 +392,8 @@ if gcc -fsyntax-only -I "$RUNTIME_DIR" "$C_FILE" -w 2>"$SYNTAX_LOG"; then
 else
   echo "❌ C 타입 오류 (풀 빌드 전 조기 감지):"
   # #line N "<fl>" 디렉티브 → FL 원본 라인 역추적
-  python3 - "$SYNTAX_LOG" "$PREPROCESSED" << 'PYEOF'
-import sys, re
+  run_fl_build_helper --syntax-map "$SYNTAX_LOG" "$PREPROCESSED"
 
-syntax_log = open(sys.argv[1]).read()
-fl_lines   = open(sys.argv[2]).read().splitlines()
-errors     = re.findall(r'<fl>:(\d+):\d+: error: (.+)', syntax_log)
-
-def c_to_fl(name):
-    n = name.replace('_', '-')
-    if n.startswith('fl-'): n = n[3:]
-    return n
-
-seen = set()
-for lineno_s, msg in errors:
-    lineno = int(lineno_s) - 1
-    fl_line = fl_lines[lineno].strip() if lineno < len(fl_lines) else ''
-    key = (lineno, msg[:60])
-    if key in seen: continue
-    seen.add(key)
-
-    print(f"  📍 FL 줄 {lineno+1}: {msg}")
-    if fl_line: print(f"     코드: {fl_line[:120]}")
-
-    # "called object X is not a function"
-    m = re.search(r"called object .([^''']+).", msg)
-    if m:
-        fn = m.group(1)
-        print(f"     💡 {fn} 는 함수가 아닙니다 → (fxb-{c_to_fl(fn)}) 로 교체하세요")
-
-    # "too few/many arguments"
-    m = re.search(r"too (few|many) arguments to function .([^''']+).", msg)
-    if m:
-        direction, fn = m.group(1), m.group(2)
-        print(f"     💡 ({c_to_fl(fn)}) 인자 수 {'부족' if direction=='few' else '초과'} — 함수 정의 확인")
-
-    # "undeclared"
-    m = re.search(r".([^''']+). undeclared", msg)
-    if m:
-        sym = m.group(1)
-        print(f"     💡 {sym} 미선언 → runtime.h 확인 또는 (fxb-{c_to_fl(sym)}) 패턴 사용")
-
-    # "incompatible type"
-    if 'incompatible type' in msg:
-        print(f"     💡 타입 불일치 — FLValue 필요 위치에 int/char* 전달 여부 확인")
-        print(f"        (없는 함수 호출 시 GCC가 int 반환으로 추론 → 이 에러 발생)")
-
-    print()
-PYEOF
   rm -f "$SYNTAX_LOG" "$C_FILE" "$PREPROCESSED"
   exit 1
 fi
@@ -592,7 +450,7 @@ fi
 
 # user-fns.c — 패키지 추가 시 변경되므로 항상 재컴파일
 USER_SRCS=""
-if [ -f "$RUNTIME_DIR/user-fns.c" ]; then
+if [ "$HAS_USER_FNS" = "1" ] && [ -f "$RUNTIME_DIR/user-fns.c" ]; then
   USER_SRCS="$RUNTIME_DIR/user-fns.c"
 fi
 
