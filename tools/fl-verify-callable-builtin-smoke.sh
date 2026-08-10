@@ -19,8 +19,9 @@ trap cleanup EXIT
 mkdir -p "$BUILD_TREE/runtime" "$BUILD_TREE/packages"
 cp -R "$ROOT_DIR/runtime/." "$BUILD_TREE/runtime/"
 cp -R "$ROOT_DIR/packages/." "$BUILD_TREE/packages/"
-cp "$ROOT_DIR/fl-build.sh" "$ROOT_DIR/fl-build-plan.py" "$ROOT_DIR/fl-module-parse.py" \
-  "$ROOT_DIR/fl-resolve-deps.py" "$ROOT_DIR/fl-str-split.py" "$ROOT_DIR/fl-pkg-gen-c.py" \
+cp "$ROOT_DIR/fl-build.sh" "$ROOT_DIR/fl-build-helper.c" "$ROOT_DIR/fl-str-split.c" \
+  "$ROOT_DIR/fl-module-parse.c" "$ROOT_DIR/fl-resolve-deps-profiles.c" "$ROOT_DIR/fl-generate-user-fns.c" \
+  "$ROOT_DIR/fl-build-plan.py" "$ROOT_DIR/fl-module-parse.py" "$ROOT_DIR/fl-resolve-deps.py" "$ROOT_DIR/fl-str-split.py" "$ROOT_DIR/fl-pkg-gen-c.py" \
   "$ROOT_DIR/fl-error-vaccine.py" "$BUILD_TREE/"
 
 cp "$BUILD_TREE/runtime/user-fns.c" "$BUILD_TREE/runtime/user-fns.c.orig"

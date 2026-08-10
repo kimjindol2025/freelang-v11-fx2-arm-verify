@@ -448,9 +448,9 @@ else
   echo "   ✅ libfx.a 캐시 사용"
 fi
 
-# user-fns.c — 패키지 추가 시 변경되므로 항상 재컴파일
+# user-fns.c — 패키지/내장 함수가 들어 있으므로 항상 링크
 USER_SRCS=""
-if [ "$HAS_USER_FNS" = "1" ] && [ -f "$RUNTIME_DIR/user-fns.c" ]; then
+if [ -f "$RUNTIME_DIR/user-fns.c" ]; then
   USER_SRCS="$RUNTIME_DIR/user-fns.c"
 fi
 
