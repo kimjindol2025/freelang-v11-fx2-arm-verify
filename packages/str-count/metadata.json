@@ -2,6 +2,7 @@
   "name": "str-count",
   "version": "1.0.0",
   "args": 2,
+  "skipRuntimeShim": true,
   "tags": ["string", "search"],
   "description": "부분 문자열 등장 횟수 반환 (str-count s sub)",
   "body": "FLValue ufl_str_count(FLValue s, FLValue sub) {\n    if (s.tag != FL_STRING || sub.tag != FL_STRING) return fl_int(0);\n    const char* haystack = ((FLString*)s.obj)->data;\n    const char* needle   = ((FLString*)sub.obj)->data;\n    size_t nlen = strlen(needle);\n    if (nlen == 0) return fl_int(0);\n    int64_t count = 0;\n    const char* p = haystack;\n    while ((p = strstr(p, needle)) != NULL) { count++; p += nlen; }\n    return fl_int(count);\n}",

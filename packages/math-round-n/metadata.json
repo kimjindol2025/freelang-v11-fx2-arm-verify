@@ -2,6 +2,7 @@
   "name": "math-round-n",
   "version": "1.0.0",
   "args": 2,
+  "skipRuntimeShim": true,
   "tags": [
     "math",
     "number"

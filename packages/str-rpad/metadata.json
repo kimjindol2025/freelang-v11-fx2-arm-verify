@@ -2,6 +2,7 @@
   "name": "str-rpad",
   "version": "1.0.0",
   "args": 3,
+  "skipRuntimeShim": true,
   "tags": [
     "string",
     "formatting"

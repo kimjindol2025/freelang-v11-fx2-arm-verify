@@ -2,6 +2,7 @@
   "name": "path-dirname",
   "version": "1.0.0",
   "args": 1,
+  "skipRuntimeShim": true,
   "tags": ["path", "file"],
   "description": "경로에서 디렉토리 부분만 추출 (path-dirname path)",
   "body": "FLValue ufl_path_dirname(FLValue p) {\n    if (p.tag != FL_STRING) return p;\n    const char* src = ((FLString*)p.obj)->data;\n    const char* last = strrchr(src, '/');\n    if (!last) return fl_str_val(\".\");\n    size_t len = last - src;\n    if (len == 0) return fl_str_val(\"/\");\n    char* buf = (char*)fl_arena_alloc(len + 1);\n    memcpy(buf, src, len);\n    buf[len] = 0;\n    return fl_str_val(buf);\n}",
