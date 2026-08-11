@@ -2113,7 +2113,7 @@ int main(int argc, char **argv) {
     if (dot) {
       Section *section;
       KeyValue *item;
-      *dot = ' ';
+      *dot = '\0';
       section = find_section(&doc, query_copy);
       item = find_key(section, dot + 1);
       print_key_array_lines(item);

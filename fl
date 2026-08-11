@@ -11,11 +11,61 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 FX_HOST="${FX_HOST:-http://localhost:40330}"
-CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}"
 
 _ok()   { echo "✓ $*"; }
 _fail() { echo "✗ $*" >&2; }
 _info() { echo "  $*"; }
+
+FL_TOML_PARSE_SRC="$SCRIPT_DIR/fl-toml-parse.c"
+FL_TOML_PARSE_BIN="$SCRIPT_DIR/.fl-toml-parse"
+FL_BUILD_PLAN_SRC="$SCRIPT_DIR/fl-build-plan.c"
+FL_BUILD_PLAN_BIN="$SCRIPT_DIR/.fl-build-plan"
+FL_MODULE_PARSE_SRC="$SCRIPT_DIR/fl-module-parse.c"
+FL_MODULE_PARSE_BIN="$SCRIPT_DIR/.fl-module-parse"
+
+build_fl_toml_parse() {
+  if [ -x "$FL_TOML_PARSE_BIN" ] && [ "$FL_TOML_PARSE_BIN" -nt "$FL_TOML_PARSE_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$FL_TOML_PARSE_SRC" -o "$FL_TOML_PARSE_BIN" 2>/tmp/fl-toml-parse-build.log; then
+    echo "[fl] fl-toml-parse.c build failed" >&2
+    cat /tmp/fl-toml-parse-build.log >&2
+    return 1
+  fi
+}
+
+build_fl_module_parse() {
+  if [ -x "$FL_MODULE_PARSE_BIN" ] && [ "$FL_MODULE_PARSE_BIN" -nt "$FL_MODULE_PARSE_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$FL_MODULE_PARSE_SRC" -o "$FL_MODULE_PARSE_BIN" 2>/tmp/fl-module-parse-build.log; then
+    echo "[fl] fl-module-parse.c build failed" >&2
+    cat /tmp/fl-module-parse-build.log >&2
+    return 1
+  fi
+}
+
+build_fl_build_plan() {
+  build_fl_module_parse || return 1
+  if [ -x "$FL_BUILD_PLAN_BIN" ] && [ "$FL_BUILD_PLAN_BIN" -nt "$FL_BUILD_PLAN_SRC" ] && [ "$FL_BUILD_PLAN_BIN" -nt "$FL_MODULE_PARSE_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$FL_BUILD_PLAN_SRC" -o "$FL_BUILD_PLAN_BIN" 2>/tmp/fl-build-plan-build.log; then
+    echo "[fl] fl-build-plan.c build failed" >&2
+    cat /tmp/fl-build-plan-build.log >&2
+    return 1
+  fi
+}
+
+run_fl_toml_parse() {
+  build_fl_toml_parse || return 1
+  "$FL_TOML_PARSE_BIN" "$@"
+}
+
+run_fl_build_plan() {
+  build_fl_build_plan || return 1
+  "$FL_BUILD_PLAN_BIN" "$@"
+}
 
 cmd=$1; shift
 
@@ -27,47 +77,31 @@ case "$cmd" in
 # fl graph <input.fl>
 # ─────────────────────────────
 build)
-  # fx.toml 있고 인자 없으면 → 런타임 초기화 포함 자동 빌드
-  # 그 외 → 기존 방식 (fl build <input.fl> [output])
   if [[ -f "fx.toml" ]] && [[ -z "$1" || "$1" == --* ]]; then
     BUILD_FLAGS=("$@")
-    PARSED=$(python3 "$SCRIPT_DIR/fl-toml-parse.py" "fx.toml" 2>/dev/null)
-    ENTRY=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('entry',''))" 2>/dev/null)
-    OUTPUT=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('output',''))" 2>/dev/null)
+    PARSED=$(run_fl_toml_parse "fx.toml" 2>/dev/null) || exit 1
+    ENTRY=$(run_fl_toml_parse --get project.entry "fx.toml" 2>/dev/null)
+    OUTPUT=$(run_fl_toml_parse --get project.output "fx.toml" 2>/dev/null)
     if [[ -z "$ENTRY" ]]; then _fail "fx.toml에 [project] entry 없음"; exit 1; fi
     if [[ -z "$OUTPUT" ]]; then OUTPUT="${ENTRY%.fl}"; fi
     if [[ ! -f "$ENTRY" ]]; then _fail "entry 파일 없음: $ENTRY"; exit 1; fi
     echo "🔨 fl build: $ENTRY → $OUTPUT"; echo ""
-    PKG_JSON=$(echo "$PARSED" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-rt = d.get('runtime', {})
-pkgs = rt.get('packages', [])
-profs = rt.get('profiles', [])
-payload = {}
-if pkgs:  payload['packages'] = pkgs
-if profs: payload['profiles'] = profs
-if payload: print(json.dumps(payload))
-" 2>/dev/null)
+    PKG_JSON=$(run_fl_toml_parse --runtime-payload "fx.toml" 2>/dev/null || true)
     if [[ -n "$PKG_JSON" ]]; then
       echo "📦 런타임 초기화..."
       INIT_RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
         -H "Content-Type: application/json" -d "$PKG_JSON" 2>/dev/null)
-      INIT_OK=$(echo "$INIT_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+      INIT_FILE=$(mktemp /tmp/fx2-fl-init.XXXXXX.json)
+      printf '%s' "$INIT_RESULT" > "$INIT_FILE"
+      INIT_OK=$(run_fl_toml_parse --new-init-ok "$INIT_FILE" 2>/dev/null || true)
       if [[ "$INIT_OK" == "True" ]]; then
-        echo "$INIT_RESULT" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-added=[p['name'] for p in d.get('packages',[]) if p.get('action')!='skipped']
-skip=[p['name'] for p in d.get('packages',[]) if p.get('action')=='skipped']
-if added: print('  + '+', '.join(added))
-if skip:  print('  ↩ skipped: '+', '.join(skip))
-" 2>/dev/null
+        run_fl_toml_parse --new-init-package-summary "$INIT_FILE" 2>/dev/null || true
         _ok "런타임 준비 완료"; echo ""
       else
-        ERR=$(echo "$INIT_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
-        _fail "런타임 초기화 실패: $ERR"; exit 1
+        ERR=$(run_fl_toml_parse --new-init-error "$INIT_FILE" 2>/dev/null || true)
+        _fail "런타임 초기화 실패: $ERR"; rm -f "$INIT_FILE"; exit 1
       fi
+      rm -f "$INIT_FILE"
     fi
     exec bash "$SCRIPT_DIR/fl-build.sh" "$ENTRY" "$OUTPUT" "${BUILD_FLAGS[@]}"
   else
@@ -78,19 +112,22 @@ if skip:  print('  ↩ skipped: '+', '.join(skip))
 plan)
   INPUT=$1; shift
   OUTPUT="${1:-$(basename "${INPUT%.fl}")}"
-  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" plan
+  run_fl_build_plan "$INPUT" "$SCRIPT_DIR" "$OUTPUT" plan
+  exit $?
   ;;
 
 check)
   INPUT=$1
   OUTPUT="$(basename "${INPUT%.fl}")"
-  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" check
+  run_fl_build_plan "$INPUT" "$SCRIPT_DIR" "$OUTPUT" check
+  exit $?
   ;;
 
 graph)
   INPUT=$1
   OUTPUT="$(basename "${INPUT%.fl}")"
-  exec python3 "$SCRIPT_DIR/fl-build-plan.py" "$INPUT" "$SCRIPT_DIR" "$OUTPUT" graph
+  run_fl_build_plan "$INPUT" "$SCRIPT_DIR" "$OUTPUT" graph
+  exit $?
   ;;
 
 # ─────────────────────────────
@@ -119,7 +156,6 @@ new)
   mkdir -p "$NAME"
   _ok "디렉토리 생성: $NAME/"
 
-  # ── fx.toml 생성 ──────────────────────────────────────────────
   {
     echo "[project]"
     echo "name   = \"$NAME\""
@@ -136,52 +172,39 @@ new)
   } > "$NAME/fx.toml"
   _ok "fx.toml 생성"
 
-  # ── app.fl 생성 ────────────────────────────────────────────────
   cat > "$NAME/app.fl" << 'FL'
 (println "Hello, fx2!")
 FL
   _ok "app.fl 생성"
 
-  # ── .gitignore ─────────────────────────────────────────────────
   cat > "$NAME/.gitignore" << 'GI'
 # 빌드 결과물
 *.bin
 /out/
 GI
-  # 바이너리 이름도 추가
   echo "/$NAME" >> "$NAME/.gitignore"
   _ok ".gitignore 생성"
 
-  # ── 런타임 초기화 (프로파일/패키지 있을 때) ─────────────────────
   if [[ ${#PROFILES[@]} -gt 0 ]] || [[ ${#PKGS[@]} -gt 0 ]]; then
     echo ""
     echo "📦 런타임 초기화..."
-    PAYLOAD=$(python3 -c "
-import json, sys
-profs = '${PROFILES[*]}'.split() if '${PROFILES[*]}' else []
-pkgs  = '${PKGS[*]}'.split() if '${PKGS[*]}' else []
-d = {}
-if profs: d['profiles'] = profs
-if pkgs:  d['packages'] = pkgs
-print(json.dumps(d))
-" 2>/dev/null)
+    if ! build_fl_toml_parse; then
+      exit 1
+    fi
+    PAYLOAD=$("$FL_TOML_PARSE_BIN" --new-payload --profiles "${#PROFILES[@]}" "${PROFILES[@]}" --packages "${#PKGS[@]}" "${PKGS[@]}")
     RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
       -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null)
-    INIT_OK=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
+    RESULT_FILE=$(mktemp /tmp/fx2-fl-new.XXXXXX.json)
+    printf '%s' "$RESULT" > "$RESULT_FILE"
+    INIT_OK=$("$FL_TOML_PARSE_BIN" --new-init-ok "$RESULT_FILE" 2>/dev/null || true)
     if [[ "$INIT_OK" == "True" ]]; then
-      echo "$RESULT" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-added=[p['name'] for p in d.get('packages',[]) if p.get('action')!='skipped']
-skip=[p['name'] for p in d.get('packages',[]) if p.get('action')=='skipped']
-if added: print('  + '+', '.join(added))
-if skip:  print('  ↩ skipped: '+', '.join(skip))
-" 2>/dev/null
+      "$FL_TOML_PARSE_BIN" --new-init-package-summary "$RESULT_FILE" 2>/dev/null || true
       _ok "런타임 준비 완료"
     else
-      ERR=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
+      ERR=$("$FL_TOML_PARSE_BIN" --new-init-error "$RESULT_FILE" 2>/dev/null || true)
       _fail "런타임 초기화 실패: $ERR"
     fi
+    rm -f "$RESULT_FILE"
   fi
 
   echo ""
@@ -199,15 +222,11 @@ profile)
   subcmd=$1; shift
   case "$subcmd" in
     list)
-      curl -s "$FX_HOST/fx/profiles" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-print(f'프로파일 {d[\"count\"]}개:')
-for p in d['profiles']:
-    icon = '✓' if p['installed'] else '○'
-    deps = (' (depends: ' + ', '.join(p.get('depends',[])) + ')') if p.get('depends') else ''
-    print(f'  {icon} {p[\"name\"]:10s}  {len(p[\"packages\"]):2d}개 함수{deps}')
-" 2>/dev/null
+      TMP=$(mktemp /tmp/fx2-fl-profile-list.XXXXXX.json)
+      curl -s "$FX_HOST/fx/profiles" > "$TMP"
+      build_fl_toml_parse || exit 1
+      "$FL_TOML_PARSE_BIN" --profile-list "$TMP" 2>/dev/null
+      rm -f "$TMP"
       ;;
 
     add)
@@ -225,25 +244,14 @@ for p in d['profiles']:
         PAYLOAD="{\"profiles\":[\"$PNAME\"]}"
       fi
 
+      TMP=$(mktemp /tmp/fx2-fl-profile-add.XXXXXX.json)
       RESULT=$(curl -s -X POST "$FX_HOST/fx/project/init" \
         -H "Content-Type: application/json" \
         -d "$PAYLOAD" 2>/dev/null)
-
-      echo "$RESULT" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-if d.get('ok'):
-    print(f'✓ {d[\"action\"]}')
-    for p in d.get('packages',[]):
-        icon = '↩' if p['action']=='skipped' else '+'
-        print(f'  {icon} {p[\"name\"]} ({p[\"action\"]})')
-    rp = d.get('resolved_profiles',[])
-    if rp: print(f'  depends chain: {\" → \".join(rp)}')
-else:
-    print(f'✗ {d.get(\"error\",\"알 수 없는 오류\")}')
-    if d.get('error') == 'PROFILE_ABI_MISMATCH':
-        print(f'  프로파일: {d.get(\"profile\")} expected={d.get(\"expected\")} got={d.get(\"got\")}')
-" 2>/dev/null
+      printf '%s' "$RESULT" > "$TMP"
+      build_fl_toml_parse || exit 1
+      "$FL_TOML_PARSE_BIN" --profile-add-output "$TMP" 2>/dev/null
+      rm -f "$TMP"
       ;;
 
     *)
@@ -256,8 +264,8 @@ else:
 # ─────────────────────────────
 run)
   if [[ ! -f "fx.toml" ]]; then _fail "fx.toml 없음"; exit 1; fi
-  PARSED=$(python3 "$SCRIPT_DIR/fl-toml-parse.py" "fx.toml" 2>/dev/null)
-  OUTPUT=$(echo "$PARSED" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('project',{}).get('output',''))" 2>/dev/null)
+  build_fl_toml_parse || exit 1
+  OUTPUT=$("$FL_TOML_PARSE_BIN" --get project.output "fx.toml" 2>/dev/null)
   if [[ -z "$OUTPUT" ]]; then _fail "fx.toml에 output 없음"; exit 1; fi
   if [[ ! -f "./$OUTPUT" ]]; then
     _info "바이너리 없음 — 빌드 먼저..."
@@ -277,29 +285,21 @@ pkg)
       if [[ -z "$NAME" ]]; then echo "사용법: fl pkg add <name>" >&2; exit 1; fi
       PKG_FILE="$SCRIPT_DIR/packages/$NAME.json"
       if [[ ! -f "$PKG_FILE" ]]; then _fail "패키지 없음: $NAME"; exit 1; fi
-      echo "📦 패키지 추가: $NAME"
-      RESULT=$(curl -s -X POST "$FX_HOST/fx/fns" \
-        -H "Content-Type: application/json" -d @"$PKG_FILE" 2>/dev/null)
-      OK=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
-      if [[ "$OK" == "True" ]]; then
-        _ok "$NAME 등록"
-        BUILD_RESULT=$(curl -s -X POST "$FX_HOST/fx/build" 2>/dev/null)
-        BUILD_OK=$(echo "$BUILD_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ok',False))" 2>/dev/null)
-        [[ "$BUILD_OK" == "True" ]] && _ok "런타임 빌드 완료" || _fail "런타임 빌드 실패"
-      else
-        ERR=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error',''))" 2>/dev/null)
-        _fail "$NAME 등록 실패: $ERR"
-      fi
+      build_fl_toml_parse || exit 1
+      PAYLOAD=$("$FL_TOML_PARSE_BIN" --run-pkg-import-payload "$NAME")
+      RESULT=$(curl -s -X POST "$FX_HOST/fx/fns/import" \
+        -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null)
+      TMP=$(mktemp /tmp/fx2-fl-pkg-add.XXXXXX.json)
+      printf '%s' "$RESULT" > "$TMP"
+      "$FL_TOML_PARSE_BIN" --run-pkg-import-output "$NAME" "$TMP" 2>/dev/null
+      rm -f "$TMP"
       ;;
     list)
-      curl -s "$FX_HOST/fx/fns" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-fns=d.get('functions',d.get('fns',[]))
-print(f'설치된 패키지 {len(fns)}개:')
-for f in sorted(fns, key=lambda x: x.get('name','')):
-    print(f'  {f.get(\"name\",\"?\")}  ({f.get(\"args\",\"?\")}인자)')
-" 2>/dev/null
+      build_fl_toml_parse || exit 1
+      TMP=$(mktemp /tmp/fx2-fl-pkg-list.XXXXXX.json)
+      curl -s "$FX_HOST/fx/fns" > "$TMP"
+      "$FL_TOML_PARSE_BIN" --pkg-list "$TMP" 2>/dev/null
+      rm -f "$TMP"
       ;;
     *) echo "사용법: fl pkg add <name> | fl pkg list" ;;
   esac
@@ -329,7 +329,6 @@ fl — FreeLang 프로젝트 CLI
 
 환경변수:
   FX_HOST   fl-source-manager 주소 (기본: http://localhost:40330)
-  CGC_BIN   cgc 바이너리 경로
 
 예시:
   fl new my-api --profile web,math
