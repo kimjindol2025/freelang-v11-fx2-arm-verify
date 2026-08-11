@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>fx2 WASM smoke</title>
+<p id="status">Loading fx2 WASM…</p>
+<script>
+  var Module = {
+    onRuntimeInitialized: function () {
+      var passed = Module.ccall('fx2_wasm_smoke', 'number', [], []) === 1;
+      document.getElementById('status').textContent = passed
+        ? 'fx2 WASM browser smoke passed'
+        : 'fx2 WASM browser smoke failed';
+    }
+  };
+</script>
+<script src="fx2-browser.js"></script>
