@@ -1,10 +1,9 @@
-;; fx2-playground — fx2 코드 검사 최소 세로 슬라이스
-
+;; fx2-playground — native-compatible checker
 (define SERVER_PORT 8488)
 (define CHECK_FILE "/tmp/fx2-playground-check.fl")
+(define CHECK_LOG "/tmp/fx2-playground-check.log")
 
-(defn text-or [$value $fallback]
-  (if (= $value nil) $fallback $value))
+(defn text-or [$value $fallback] (if (= $value nil) $fallback $value))
 
 (defn html-escape [$value]
   (let [$text (str (text-or $value ""))
@@ -15,67 +14,37 @@
     (str-replace $d "'" "&#39;")))
 
 (defn request-code [$req]
-  (let [$body (get $req "body")
-        $code (if (= $body nil) "" (get $body "code"))]
-    (text-or $code "")))
+  (let [$body (get $req "body")]
+    (if (= $body nil) "" (text-or (get $body "code") ""))))
 
 (defn check-source [$source]
   (do
     (file-write CHECK_FILE $source)
-    (let [$output (shell-run (str "fl check " CHECK_FILE " 2>&1"))
-          $ok (and (> (str-count $output "error") 0) false)]
-      {"ok" $ok
-       "source" $source
-       "output" (text-or $output "")
-       "file" CHECK_FILE})))
+    (let [$exit (str-trim (process-run (str "bash /root/kim/freelang-v11-fx2/fl-build.sh " CHECK_FILE " >" CHECK_LOG " 2>&1; echo $?")))
+          $output (text-or (file-read CHECK_LOG) "")
+          $ok (= $exit "0")]
+      {"ok" $ok "source" $source "output" $output "exit" $exit "file" CHECK_FILE})))
 
 (defn page [$source $result]
   (let [$safe-source (html-escape $source)
         $safe-result (html-escape (get $result "output"))
         $status (if (get $result "ok") "검사 통과" "검사 결과")]
     (str
-      "<!doctype html><html lang='ko'><head><meta charset='utf-8'>"
-      "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-      "<title>fx2 Playground</title>"
-      "<style>"
-      "*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#e6edf3;font-family:system-ui,sans-serif}"
-      ".wrap{max-width:1100px;margin:0 auto;padding:42px 20px}.eyebrow{color:#79c0ff;font-size:13px;letter-spacing:.12em;text-transform:uppercase}"
-      "h1{margin:10px 0 8px;font-size:38px}.sub{color:#9aa4b2;line-height:1.6}"
-      ".grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}.panel{padding:18px;border:1px solid #2d3748;border-radius:16px;background:#111827}"
-      "h2{font-size:18px;color:#79c0ff;margin:0 0 12px}textarea{width:100%;min-height:360px;padding:14px;border:1px solid #344054;border-radius:12px;background:#080d16;color:#e6edf3;font:14px/1.6 monospace;resize:vertical}"
-      "button{margin-top:12px;padding:12px 18px;border:0;border-radius:10px;background:#238636;color:#fff;font-weight:700;cursor:pointer}"
-      "pre{min-height:360px;margin:0;padding:14px;overflow:auto;white-space:pre-wrap;border-radius:12px;background:#080d16;color:#c9d1d9;font:14px/1.6 monospace}"
-      ".hint{margin-top:16px;color:#8b949e;font-size:13px}.api{color:#9aa4b2;font:13px monospace}"
-      "@media(max-width:800px){.grid{grid-template-columns:1fr}}"
-      "</style></head><body><main class='wrap'>"
-      "<div class='eyebrow'>FreeLang fx2 · Native Playground</div>"
-      "<h1>fx2 언어 체크</h1>"
-      "<p class='sub'>fx2 서버가 코드를 임시 파일로 저장하고 네이티브 검증기를 실행한 뒤 결과를 JSON/HTML로 반환합니다.</p>"
-      "<div class='grid'><section class='panel'><h2>fx2 코드</h2>"
-      "<form method='post' action='/api/check'><textarea name='code'>" $safe-source "</textarea><button type='submit'>검사하기</button></form></section>"
+      "<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+      "<title>fx2 Playground</title><style>body{margin:0;background:#0b1220;color:#e6edf3;font-family:system-ui,sans-serif}.wrap{max-width:1100px;margin:auto;padding:42px 20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{padding:18px;border:1px solid #2d3748;border-radius:16px;background:#111827}textarea,pre{width:100%;min-height:360px;box-sizing:border-box;padding:14px;background:#080d16;color:#e6edf3;border:1px solid #344054;border-radius:12px;font:14px/1.6 monospace;white-space:pre-wrap}button{padding:12px 18px;background:#238636;color:white;border:0;border-radius:10px;font-weight:700}@media(max-width:800px){.grid{grid-template-columns:1fr}}</style></head><body><main class='wrap'>"
+      "<p>FreeLang fx2 · Native Playground</p><h1>fx2 언어 체크</h1>"
+      "<p>fx2 서버가 임시 파일에 저장한 뒤 네이티브 검증기를 실행합니다.</p>"
+      "<div class='grid'><section class='panel'><h2>fx2 코드</h2><form method='post' action='/check'><textarea name='code'>" $safe-source "</textarea><br><button type='submit'>검사하기</button></form></section>"
       "<section class='panel'><h2>" $status "</h2><pre>" $safe-result "</pre></section></div>"
-      "<p class='hint'>API: <span class='api'>POST /api/check</span> · 필드: <span class='api'>code</span></p>"
-      "</main></body></html>")))
+      "<p>API: POST /api/check · field: code</p></main></body></html>")))
 
-(defn empty-result []
-  {"ok" true "source" "(println \"Hello, fx2!\")" "output" "코드를 입력하고 검사하세요." "file" CHECK_FILE})
-
-(defn handle-home [$req]
-  (server_html (page (get (empty-result) "source") (empty-result))))
-
-(defn handle-check [$req]
-  (let [$source (request-code $req)
-        $result (check-source $source)]
-    (server_json (json-stringify $result))))
-
-(defn handle-check-page [$req]
-  (let [$source (request-code $req)
-        $result (check-source $source)]
-    (server_html (page $source $result))))
+(defn empty-result [] {"ok" true "source" "(println \"Hello, fx2!\")" "output" "코드를 입력하고 검사하세요." "file" CHECK_FILE})
+(defn handle-home [$req] (let [$r (empty-result)] (server_html (page (get $r "source") $r))))
+(defn handle-check [$req] (let [$r (check-source (request-code $req))] (server_json (json-stringify $r))))
+(defn handle-check-page [$req] (let [$s (request-code $req) $r (check-source $s)] (server_html (page $s $r))))
 
 (server_get "/" "handle-home")
 (server_post "/api/check" "handle-check")
 (server_post "/check" "handle-check-page")
-
-(println (str "🚀 fx2 Playground — http://localhost:" SERVER_PORT))
+(println (str "fx2 Playground — http://localhost:" SERVER_PORT))
 (server_start SERVER_PORT)

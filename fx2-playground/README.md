@@ -1,6 +1,6 @@
 # fx2 Playground
 
-fx2 코드 입력을 받아 `fl check`를 실행하는 최소 SSR/API 예제다.
+fx2 코드 입력을 받아 `fl-build.sh` 네이티브 검사를 실행하는 최소 SSR/API 예제다.
 
 ## 실행
 
