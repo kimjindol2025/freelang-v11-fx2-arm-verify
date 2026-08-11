@@ -753,6 +753,7 @@ static int run_syntax_map(const char *syntax_log_path, const char *fl_path) {
   size_t line_count = 0;
   SeenList seen = {0};
   char *cursor;
+  int printed_any = 0;
   if (!syntax_log || !fl_text) {
     free(syntax_log);
     free(fl_text);
@@ -767,50 +768,36 @@ static int run_syntax_map(const char *syntax_log_path, const char *fl_path) {
     char *line = substr_dup(cursor, 0, len);
     char *marker = strstr(line, "<fl>:");
     char *msg = strstr(line, ": error: ");
+    char *severity = ": error: ";
+    if (!msg) {
+      msg = strstr(line, ": warning: ");
+      severity = ": warning: ";
+    }
     if (marker && msg) {
-      int fl_line = atoi(marker + 5);
-      char *message = msg + 9;
+      char *line_start = marker + 5;
+      char *line_end_num = line_start;
       char prefix[61];
       char *fl_line_text;
-      memset(prefix, 0, sizeof(prefix));
-      strncpy(prefix, message, 60);
-      if (!seen_contains(&seen, fl_line, prefix)) {
-        printf("  📍 FL 줄 %d: %s\n", fl_line, message);
-        fl_line_text = get_line_text(lines, line_count, fl_line);
-        if (fl_line_text && fl_line_text[0]) {
-          printf("     코드: %.120s\n", fl_line_text);
-        }
-        if (strstr(message, "called object") && strstr(message, "is not a function")) {
-          char *name = extract_quoted_after(message, "called object");
-          if (name) {
-            char mapped[256];
-            c_to_fl_name(name, mapped, sizeof(mapped));
-            printf("     💡 %s 는 함수가 아닙니다 → (fxb-%s) 로 교체하세요\n", name, mapped);
-            free(name);
+      while (*line_end_num && isdigit((unsigned char)*line_end_num)) {
+        line_end_num++;
+      }
+      if (line_end_num != line_start) {
+        int fl_line = atoi(line_start);
+        char *message = msg + strlen(severity);
+        memset(prefix, 0, sizeof(prefix));
+        strncpy(prefix, message, 60);
+        if (!seen_contains(&seen, fl_line, prefix)) {
+          printf("  📍 FL 줄 %d: %s\n", fl_line, message);
+          fl_line_text = get_line_text(lines, line_count, fl_line);
+          if (fl_line_text && fl_line_text[0]) {
+            printf("     코드: %.120s\n", fl_line_text);
+          } else {
+            printf("     코드: (source 범위를 벗어난 줄)\n");
           }
+          putchar('\n');
+          seen_add(&seen, fl_line, prefix);
+          printed_any = 1;
         }
-        if (strstr(message, "too few arguments to function") || strstr(message, "too many arguments to function")) {
-          char *name = extract_quoted_after(message, "arguments to function");
-          if (name) {
-            char mapped[256];
-            c_to_fl_name(name, mapped, sizeof(mapped));
-            printf("     💡 (%s) 인자 수 %s — 함수 정의 확인\n", mapped, strstr(message, "too few") ? "부족" : "초과");
-            free(name);
-          }
-        }
-        if (strstr(message, " undeclared")) {
-          char *name = extract_quoted_after(message, "");
-          if (name) {
-            printf("     💡 %s 미선언 → runtime.h 확인 또는 (fxb-...) 패턴 사용\n", name);
-            free(name);
-          }
-        }
-        if (strstr(message, "incompatible type")) {
-          puts("     💡 타입 불일치 — FLValue 필요 위치에 int/char* 전달 여부 확인");
-          puts("        (없는 함수 호출 시 GCC가 int 반환으로 추론 → 이 에러 발생)");
-        }
-        putchar('\n');
-        seen_add(&seen, fl_line, prefix);
       }
     }
     free(line);
@@ -818,6 +805,9 @@ static int run_syntax_map(const char *syntax_log_path, const char *fl_path) {
       break;
     }
     cursor = line_end + 1;
+  }
+  if (!printed_any) {
+    fputs(syntax_log, stdout);
   }
   for (size_t i = 0; i < line_count; i++) {
     free(lines[i]);
@@ -829,7 +819,6 @@ static int run_syntax_map(const char *syntax_log_path, const char *fl_path) {
   free(syntax_log);
   return 0;
 }
-
 static int run_preprocess(const char *input, const char *output) {
   StrList visited = {0};
   StrList stack = {0};

@@ -488,7 +488,9 @@ if gcc -o "$OUTPUT" "$APP_O" $USER_SRCS "$LIBFX_A" \
   rm -f "$GCC_LOG"
 else
   echo "❌ gcc 컴파일 실패:"
-  python3 "$SCRIPT_DIR/fl-error-vaccine.py" "$GCC_LOG" "$PREPROCESSED" "$C_FILE"
+  if ! run_fl_build_helper --syntax-map "$GCC_LOG" "$PREPROCESSED"; then
+    cat "$GCC_LOG"
+  fi
   rm -f "$C_FILE" "$PREPROCESSED" "$GCC_LOG"
   exit 1
 fi
