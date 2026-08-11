@@ -21,5 +21,6 @@ emcc -O2 -DFL_NO_CRYPTO -I "$ROOT_DIR/runtime" \
   -sEXPORTED_FUNCTIONS='["_fx2_wasm_smoke"]' \
   -sEXPORTED_RUNTIME_METHODS='["ccall"]'
 
-cp "$ROOT_DIR/docs/wasm-browser-smoke.html" "$OUT_DIR/index.html"
+cp "$ROOT_DIR/docs/wasm-browser-adapter-smoke.html" "$OUT_DIR/index.html"
+cp "$ROOT_DIR/docs/fx2-wasm-adapter.js" "$OUT_DIR/fx2-wasm-adapter.js"
 echo "Browser WASM smoke built: $OUT_DIR"
