@@ -1,0 +1,8 @@
+[project]
+name   = "fx2-playground"
+entry  = "app.fl"
+output = "fx2-playground"
+port   = 8488
+
+[runtime]
+packages = []
