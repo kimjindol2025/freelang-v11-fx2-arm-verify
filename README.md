@@ -57,6 +57,12 @@ bash fl-build.sh hello.fl hello-bin
 ./hello-bin
 ```
 
+## fx2 Playground 안전 실행
+
+`fx2-playground/app.fl`은 요청마다 임시 작업공간과 산출물 경로를 만들고, 소스 크기 1MB, 실행 시간 15초, 동시 검사 8개로 제한합니다. 빌드는 `--no-net`으로 실행되며 요청 종료 후 작업공간을 정리합니다. 서버 시작 시 워밍업 빌드를 수행해 첫 요청도 제한 시간 안에서 처리합니다.
+
+`POST /api/check`는 성공 200, 소스 초과 413, 컴파일 오류 422, 동시 요청 초과 429, 실행 시간 초과 408을 반환합니다.
+
 ## Structure snapshot
 
 ```text

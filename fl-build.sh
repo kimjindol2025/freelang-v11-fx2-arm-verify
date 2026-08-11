@@ -182,7 +182,7 @@ pick_cgc_bin() {
 
   case "$(uname -m)" in
     aarch64|arm64)
-      for candidate in         /root/freelang-v11/bin/cgc-bin.bak         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin-x86_64-backup         /home/kimjin/freelang-v11/bin/cgc-bin
+      for candidate in         /root/freelang-v11/bin/cgc-bin         /root/freelang-v11/bin/cgc-bin.bak         /root/freelang-v11/bin/cgc-bin-x86_64-backup         /home/kimjin/freelang-v11/bin/cgc-bin
       do
         if [ -x "$candidate" ]; then
           echo "$candidate"
