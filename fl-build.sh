@@ -21,6 +21,9 @@ FL_USER_FNS_GEN_SRC="$SCRIPT_DIR/fl-generate-user-fns.c"
 FL_USER_FNS_GEN_BIN="$SCRIPT_DIR/.fl-generate-user-fns"
 FL_BUILD_HELPER_SRC="$SCRIPT_DIR/fl-build-helper.c"
 FL_BUILD_HELPER_BIN="$SCRIPT_DIR/.fl-build-helper"
+if [ -f "$SCRIPT_DIR/tools/fl-rules-native-runner.sh" ]; then
+  source "$SCRIPT_DIR/tools/fl-rules-native-runner.sh"
+fi
 
 build_fl_str_split() {
   if [ -x "$FL_STR_SPLIT_BIN" ] && [ "$FL_STR_SPLIT_BIN" -nt "$FL_STR_SPLIT_SRC" ]; then
@@ -339,9 +342,12 @@ fi
 
 if [ -f "$FL_RULES" ]; then
   echo "📋 프로젝트 규칙 검사 ($FL_RULES)..."
-  RULES_OUT=$(node /home/kimjin/freelang-v11/bootstrap.js run \
-    "$SCRIPT_DIR/fl-rules-runner.fl" \
-    "$FL_RULES" "$PREPROCESSED" 2>&1 | grep -E "^(error|warn):")
+  if RULES_LOG=$(run_rules_native "$SCRIPT_DIR" "$FL_RULES" "$PREPROCESSED" "$SCRIPT_DIR/fl-build.sh" 2>&1); then
+    RULES_STATUS=0
+  else
+    RULES_STATUS=$?
+  fi
+  RULES_OUT=$(printf '%s\n' "$RULES_LOG" | grep -E "^(error|warn):" || true)
 
   RULES_ERRORS=0
   RULES_WARNS=0
@@ -361,6 +367,13 @@ if [ -f "$FL_RULES" ]; then
       RULES_WARNS=$((RULES_WARNS + 1))
     fi
   done <<< "$RULES_OUT"
+
+  if [ "$RULES_STATUS" -ne 0 ] && [ "$RULES_ERRORS" -eq 0 ]; then
+    echo "$RULES_LOG"
+    echo "❌ 프로젝트 규칙 검사 실패"
+    rm -f "$PREPROCESSED"
+    exit 1
+  fi
 
   if [ "$RULES_ERRORS" -gt 0 ]; then
     echo "❌ 프로젝트 규칙 위반 ${RULES_ERRORS}개 — 컴파일 중단"
