@@ -19,29 +19,21 @@ trap cleanup EXIT
 mkdir -p "$BUILD_TREE/runtime" "$BUILD_TREE/packages"
 cp -R "$ROOT_DIR/runtime/." "$BUILD_TREE/runtime/"
 cp -R "$ROOT_DIR/packages/." "$BUILD_TREE/packages/"
-cp "$ROOT_DIR/fl-build.sh" "$ROOT_DIR/fl-build-helper.c" "$ROOT_DIR/fl-str-split.c" \
-  "$ROOT_DIR/fl-module-parse.c" "$ROOT_DIR/fl-resolve-deps-profiles.c" "$ROOT_DIR/fl-generate-user-fns.c" \
-  "$ROOT_DIR/fl-build-plan.py" "$ROOT_DIR/fl-module-parse.py" "$ROOT_DIR/fl-resolve-deps.py" "$ROOT_DIR/fl-str-split.py" "$ROOT_DIR/fl-pkg-gen-c.py" \
-  "$ROOT_DIR/fl-error-vaccine.py" "$BUILD_TREE/"
+cp "$ROOT_DIR/fl-build.sh" "$ROOT_DIR/fl-build-plan.c" "$ROOT_DIR/fl-build-helper.c"   "$ROOT_DIR/fl-module-parse.c" "$ROOT_DIR/fl-resolve-deps-profiles.c" "$ROOT_DIR/fl-generate-user-fns.c"   "$ROOT_DIR/fl-str-split.c" "$BUILD_TREE/"
 
 cp "$BUILD_TREE/runtime/user-fns.c" "$BUILD_TREE/runtime/user-fns.c.orig"
 
-echo "[1/4] registry + user-fns regeneration check via fl-pkg-gen-c.py"
-python3 "$BUILD_TREE/fl-pkg-gen-c.py" "$BUILD_TREE" >"$PKG_JSON_FILE"
+echo "[1/4] registry + user-fns regeneration check via fl-pkg-gen-c"
+bash "$ROOT_DIR/fl-pkg-gen-c" "$BUILD_TREE" >"$PKG_JSON_FILE"
 cat "$PKG_JSON_FILE"
 
-PKG_MISSING_COUNT="$(python3 - "$PKG_JSON_FILE" <<'PY'
-import json, sys
-payload = json.load(open(sys.argv[1]))
-print(len(payload.get("missing", [])))
-PY
-)"
-PKG_COUNT="$(python3 - "$PKG_JSON_FILE" <<'PY'
-import json, sys
-payload = json.load(open(sys.argv[1]))
-print(payload.get("count", 0))
-PY
-)"
+PKG_COUNT="$(sed -n 's/.*"count":\([0-9][0-9]*\).*//p' "$PKG_JSON_FILE")"
+PKG_MISSING_RAW="$(sed -n 's/.*"missing":\[\([^]]*\)\].*//p' "$PKG_JSON_FILE" | tr -d ' "')"
+if [ -z "$PKG_MISSING_RAW" ]; then
+  PKG_MISSING_COUNT=0
+else
+  PKG_MISSING_COUNT="$(printf '%s' "$PKG_MISSING_RAW" | awk -F',' '{print NF}')"
+fi
 if [ "$PKG_MISSING_COUNT" != "0" ]; then
   echo "❌ missing package metadata detected"
   exit 1
@@ -58,7 +50,9 @@ mv "$BUILD_TREE/runtime/user-fns.no-shim.c" "$BUILD_TREE/runtime/user-fns.c"
 
 cat >"$SMOKE_SRC" <<'FL'
 (println "[smoke] str-lines")
-(println (length (str-lines "hello\nworld\nfx2")))
+(println (length (str-lines "hello
+world
+fx2")))
 (println "[smoke] str-count")
 (println (str-count "hello world hello" "hello"))
 (println "[smoke] math-lerp")

@@ -25,7 +25,7 @@ BUILD_CMD="${BUILD_CMD:-cd /root/freelang-v11 && node scripts/build.js}"
 FIXPOINT="${FIXPOINT:-/root/freelang-v11-fx2/verify-fixpoint.sh}"
 FLBUILD="${FLBUILD:-/root/freelang-v11-fx2/fl-build.sh}"
 CONF="${CONF:-/root/freelang-v11-fx2/spec/conformance.fl}"
-PY="python3 $HERE/_edits.py"
+EDITS_JS="$HERE/_edits.js"
 
 DRY=0; COMMIT=0; SKIP_FP=0; ORDER=""
 while [ $# -gt 0 ]; do
@@ -59,7 +59,7 @@ fi
 if [ $DRY -eq 1 ]; then
   say "DRY-RUN — 앵커 매칭 확인 (수정 안 함)"
   rc=0
-  for b in $ORDER; do $PY check "$CODEGEN" "$b" || rc=1; done
+  for b in $ORDER; do node "$EDITS_JS" check "$CODEGEN" "$b" || rc=1; done
   [ $rc -eq 0 ] && echo "전부 매칭 OK — 실제 적용 가능" || echo "일부 불일치 — 해당 패치 수동 적용 필요"
   exit $rc
 fi
@@ -79,8 +79,8 @@ gate_fixpoint(){
 
 gate_repro(){ # $1=bug
   local b="$1" t="/tmp/fxrepro_$1.fl" bin="/tmp/fxrepro_$1" out exp
-  $PY repro "$b" > "$t"
-  exp="$($PY expect "$b")"
+  node "$EDITS_JS" repro "$b" > "$t"
+  exp="$(node "$EDITS_JS" expect "$b")"
   bash "$FLBUILD" "$t" "$bin" >/dev/null 2>&1 || { echo "  ✖ 재현 빌드 실패"; return 1; }
   out="$("$bin" 2>/dev/null | tr -d '[:space:]')"
   if [ "$out" = "$exp" ]; then echo "  ✓ 재현 PASS (out=$out)"; else
@@ -89,9 +89,9 @@ gate_repro(){ # $1=bug
 
 for b in $ORDER; do
   say "버그 #$b 적용"
-  $PY check "$CODEGEN" "$b" || die "#$b 앵커 불일치 — patches/bug$b-*.patch.md 수동 적용"
+  node "$EDITS_JS" check "$CODEGEN" "$b" || die "#$b 앵커 불일치 — patches/bug$b-*.patch.md 수동 적용"
   cp "$CODEGEN" "$CODEGEN.bak.$b" || die "백업 실패"
-  $PY apply "$CODEGEN" "$b" || { mv "$CODEGEN.bak.$b" "$CODEGEN"; die "#$b 적용 실패(원복함)"; }
+  node "$EDITS_JS" apply "$CODEGEN" "$b" || { mv "$CODEGEN.bak.$b" "$CODEGEN"; die "#$b 적용 실패(원복함)"; }
 
   echo "  [빌드] $BUILD_CMD"
   if ! bash -c "$BUILD_CMD"; then mv "$CODEGEN.bak.$b" "$CODEGEN"; die "#$b 빌드 실패(원복함)"; fi

@@ -10,7 +10,7 @@
 (define FL_DIR  (read-env "FL_DIR"  "/home/kimjin/freelang-v11"))
 (define PACKAGES_DIR    (str FX2_DIR "/packages"))
 (define INSTALLED_FILE  (str FX2_DIR "/runtime/installed.json"))
-(define GEN_SCRIPT      (str FX2_DIR "/fl-pkg-gen-c.py"))
+(define GEN_SCRIPT      (str FX2_DIR "/fl-pkg-gen-c"))
 (define FL_BOOTSTRAP    (str FL_DIR "/bootstrap.js"))
 (define FL_BUILD        (str FX2_DIR "/fl-build.sh"))
 
@@ -27,7 +27,7 @@
 
 ;; ─── user-fns.c 재생성 ─────────────────────────────────────────
 (defn regen-user-fns []
-  (let [$out (shell-run (str "python3 " GEN_SCRIPT " " FX2_DIR " 2>&1"))]
+  (let [$out (shell-run (str "bash " GEN_SCRIPT " " FX2_DIR " 2>&1"))]
     (try (json-parse $out) (catch $e {"ok" false "error" (or $out "스크립트 실패")}))))
 
 ;; ─── packages/ 디렉토리 목록 ────────────────────────────────────

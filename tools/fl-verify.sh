@@ -1,10 +1,11 @@
+
 #!/usr/bin/env bash
 # tools/fl-verify.sh — canonical verification entrypoint
 
 set -e
 
 ROOT_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-BOOTSTRAP="${BOOTSTRAP:-/home/kimjin/freelang-v11/bootstrap.js}"
+source "$ROOT_DIR/tools/fl-rules-native-runner.sh"
 
 mode="${1:-official}"
 shift || true
@@ -12,21 +13,19 @@ shift || true
 run_check() {
   local input="$1"
   local output="${2:-$(basename "${input%.fl}")}"
-  python3 "$ROOT_DIR/fl-build-plan.py" "$input" "$ROOT_DIR" "$output" check
+  bash "$ROOT_DIR/fl-build.sh" "$input" "$output" --check
 }
 
 run_graph() {
   local input="$1"
   local output="${2:-$(basename "${input%.fl}")}"
-  python3 "$ROOT_DIR/fl-build-plan.py" "$input" "$ROOT_DIR" "$output" graph
+  bash "$ROOT_DIR/fl-build.sh" "$input" "$output" --graph
 }
 
 run_rules() {
   local rules="$1"
   local input="$2"
-  node "$BOOTSTRAP" run \
-    "$ROOT_DIR/fl-rules-runner.fl" \
-    "$rules" "$input"
+  run_rules_native "$ROOT_DIR" "$rules" "$input" "$ROOT_DIR/fl-build.sh"
 }
 
 case "$mode" in

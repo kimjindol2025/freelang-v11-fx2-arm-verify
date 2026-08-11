@@ -1,0 +1,100 @@
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+FX2_DIR="${1:-$SCRIPT_DIR}"
+PACKAGES_DIR="$FX2_DIR/packages"
+RUNTIME_DIR="$FX2_DIR/runtime"
+INSTALLED_FILE="$RUNTIME_DIR/installed.json"
+RESOLVE_SRC="$FX2_DIR/fl-resolve-deps-profiles.c"
+RESOLVE_BIN="$FX2_DIR/.fl-resolve-deps-profiles"
+USER_FNS_SRC="$FX2_DIR/fl-generate-user-fns.c"
+USER_FNS_BIN="$FX2_DIR/.fl-generate-user-fns"
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+build_resolve_deps() {
+  if [ -x "$RESOLVE_BIN" ] && [ "$RESOLVE_BIN" -nt "$RESOLVE_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$RESOLVE_SRC" -o "$RESOLVE_BIN" 2>/tmp/fl-pkg-gen-c-resolve.log; then
+    echo "❌ fl-resolve-deps-profiles.c build failed" >&2
+    cat /tmp/fl-pkg-gen-c-resolve.log >&2
+    return 1
+  fi
+}
+
+build_user_fns() {
+  if [ -x "$USER_FNS_BIN" ] && [ "$USER_FNS_BIN" -nt "$USER_FNS_SRC" ]; then
+    return 0
+  fi
+  if ! cc -O2 -std=c99 "$USER_FNS_SRC" -o "$USER_FNS_BIN" 2>/tmp/fl-pkg-gen-c-userfns.log; then
+    echo "❌ fl-generate-user-fns.c build failed" >&2
+    cat /tmp/fl-pkg-gen-c-userfns.log >&2
+    return 1
+  fi
+}
+
+installed_raw=""
+if [ -f "$INSTALLED_FILE" ]; then
+  installed_raw="$(tr -d '[]"' < "$INSTALLED_FILE" | tr -d '[:space:]')"
+fi
+
+installed_names=()
+if [ -n "$installed_raw" ]; then
+  IFS=, read -r -a installed_names <<< "$installed_raw"
+fi
+
+present_names=()
+missing_names=()
+for pkg in "${installed_names[@]}"; do
+  [ -n "$pkg" ] || continue
+  if [ -f "$PACKAGES_DIR/$pkg/metadata.json" ] || [ -f "$PACKAGES_DIR/$pkg.json" ]; then
+    present_names+=("$pkg")
+  else
+    missing_names+=("$pkg")
+  fi
+done
+
+metadata_file="$(mktemp /tmp/fx2-pkg-gen-c.XXXXXX.json)"
+cleanup() { rm -f "$metadata_file" /tmp/fl-pkg-gen-c-userfns.out; }
+trap cleanup EXIT
+
+if ! build_resolve_deps; then
+  printf '{"ok":false,"error":"failed to build fl-resolve-deps-profiles.c"}\n'
+  exit 1
+fi
+if ! build_user_fns; then
+  printf '{"ok":false,"error":"failed to build fl-generate-user-fns.c"}\n'
+  exit 1
+fi
+
+if [ "${#present_names[@]}" -gt 0 ]; then
+  if ! "$RESOLVE_BIN" --metadata "$FX2_DIR" "${present_names[@]}" > "$metadata_file"; then
+    printf '{"ok":false,"error":"fl-resolve-deps-profiles metadata generation failed"}\n'
+    exit 1
+  fi
+else
+  printf '[]\n' > "$metadata_file"
+fi
+
+if ! "$USER_FNS_BIN" "$FX2_DIR" "$metadata_file" >/tmp/fl-pkg-gen-c-userfns.out 2>&1; then
+  err_msg="$(cat /tmp/fl-pkg-gen-c-userfns.out 2>/dev/null || true)"
+  printf '{"ok":false,"error":"%s"}\n' "$(json_escape "${err_msg:-user-fns.c generation failed}")"
+  exit 1
+fi
+
+printf '{"ok":true,"count":%d,"packages":[' "${#present_names[@]}"
+for i in "${!present_names[@]}"; do
+  [ "$i" -gt 0 ] && printf ','
+  printf '"%s"' "$(json_escape "${present_names[$i]}")"
+done
+printf '],"missing":['
+for i in "${!missing_names[@]}"; do
+  [ "$i" -gt 0 ] && printf ','
+  printf '"%s"' "$(json_escape "${missing_names[$i]}")"
+done
+printf '],"error":null}\n'
