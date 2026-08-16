@@ -218,6 +218,7 @@ GI
 # fl profile list
 # fl profile add <name>[@version]
 # ─────────────────────────────
+
 profile)
   subcmd=$1; shift
   case "$subcmd" in
@@ -263,6 +264,16 @@ profile)
 # fl run [args...]
 # ─────────────────────────────
 run)
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  if [[ "$1" == "--rebuild" ]]; then
+    shift
+    bash "$0" build || exit 1
+  fi
+    echo "사용법: fl run [args...]"
+    echo "  현재 프로젝트의 fx.toml output을 빌드 후 실행"
+    echo "  fl run --rebuild  기존 바이너리를 무시하고 다시 빌드"
+    exit 0
+  fi
   if [[ ! -f "fx.toml" ]]; then _fail "fx.toml 없음"; exit 1; fi
   build_fl_toml_parse || exit 1
   OUTPUT=$("$FL_TOML_PARSE_BIN" --get project.output "fx.toml" 2>/dev/null)
@@ -271,7 +282,13 @@ run)
     _info "바이너리 없음 — 빌드 먼저..."
     bash "$0" build || exit 1; echo ""
   fi
-  exec "./$OUTPUT" "$@"
+  "./$OUTPUT" "$@"
+  STATUS=$?
+  if [[ "$STATUS" == "126" || "$STATUS" == "127" ]]; then
+    _fail "실행 파일을 현재 환경에서 시작할 수 없습니다: $OUTPUT"
+    _info "fl run --rebuild 로 다시 빌드하세요"
+  fi
+  exit "$STATUS"
   ;;
 
 # ─────────────────────────────
