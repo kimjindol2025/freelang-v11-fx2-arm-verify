@@ -265,22 +265,27 @@ profile)
 # ─────────────────────────────
 run)
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  if [[ "$1" == "--rebuild" ]]; then
-    shift
-    bash "$0" build || exit 1
-  fi
     echo "사용법: fl run [args...]"
     echo "  현재 프로젝트의 fx.toml output을 빌드 후 실행"
-    echo "  fl run --rebuild  기존 바이너리를 무시하고 다시 빌드"
+    echo "  fl run --rebuild  기존 바이너리를 삭제하고 다시 빌드"
     exit 0
+  fi
+  FORCE_REBUILD=0
+  if [[ "$1" == "--rebuild" ]]; then
+    FORCE_REBUILD=1
+    shift
   fi
   if [[ ! -f "fx.toml" ]]; then _fail "fx.toml 없음"; exit 1; fi
   build_fl_toml_parse || exit 1
   OUTPUT=$("$FL_TOML_PARSE_BIN" --get project.output "fx.toml" 2>/dev/null)
   if [[ -z "$OUTPUT" ]]; then _fail "fx.toml에 output 없음"; exit 1; fi
+  if [[ "$FORCE_REBUILD" == "1" ]]; then
+    rm -f "./$OUTPUT"
+  fi
   if [[ ! -f "./$OUTPUT" ]]; then
     _info "바이너리 없음 — 빌드 먼저..."
-    bash "$0" build || exit 1; echo ""
+    bash "$0" build || exit 1
+    echo ""
   fi
   "./$OUTPUT" "$@"
   STATUS=$?
