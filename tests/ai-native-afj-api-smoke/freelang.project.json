@@ -46,5 +46,12 @@
       ]
     },
     "evidence_validator": "node ../../../AFL-Core-2/src/validate-done-claim.js {claim}"
+  },
+  "frontend": {
+    "required": true,
+    "type": "freelang-ssr-front",
+    "entry": "app.fl",
+    "route": "/",
+    "browser_scenario": "open / -> input name/phone -> click Save -> POST /api/customers -> GET /api/customers/:id -> refresh -> compare display and console/network"
   }
 }

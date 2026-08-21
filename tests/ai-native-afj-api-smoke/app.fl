@@ -12,6 +12,12 @@
                      DB_DIR " " $id)]
     (json_parse (shell_exec $command))))
 
+(defn front-page []
+  (str "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>FreeLang Front AFJ Customer</title><style>body{font-family:system-ui;max-width:640px;margin:40px auto;padding:0 20px}input,button{display:block;width:100%;padding:12px;margin:8px 0;box-sizing:border-box}button{cursor:pointer}#result{padding:12px;background:#eef;border-radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script>const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>"))
+
+(defn handle-front [$req]
+  (server_html (front-page)))
+
 (defn handle-health [$req]
   (server_json (json-stringify {"status" "ok" "runtime" "FreeLang AFJ"})))
 
@@ -35,6 +41,7 @@
       (server_status 404 (json-stringify {"error" "CUSTOMER_NOT_FOUND"}))
       (server_json (json-stringify (get $result "value"))))))
 
+(server_get "/" "handle-front")
 (server_get "/health" "handle-health")
 (server_post "/api/customers" "handle-create")
 (server_get "/api/customers/:id" "handle-get")
