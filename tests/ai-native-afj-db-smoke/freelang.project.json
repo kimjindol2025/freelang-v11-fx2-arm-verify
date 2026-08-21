@@ -1,0 +1,23 @@
+{
+  "project": { "name": "ai-native-afj-db-smoke" },
+  "runtime": { "language": "FreeLang AFJ", "interpreter": "v11-bootstrap", "native": "fx2-cgc" },
+  "database": {
+    "type": "afj-db",
+    "root": "../../../afl-db/v2-afj",
+    "verify": { "mode": "smoke" }
+  },
+  "verify": {
+    "input": "app.fl",
+    "evidence_dir": ".fl-verify/evidence",
+    "syntax_command": "node ../../../freelang-v11/bootstrap.js check app.fl",
+    "type_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-db-type --check >/tmp/fl-afj-db-type.log 2>&1",
+    "interpreter_command": "node ../../../freelang-v11/bootstrap.js run app.fl",
+    "native_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-db-native >/tmp/fl-afj-db-native.log 2>&1 && /tmp/fl-afj-db-native",
+    "parity": {
+      "interpreter_command": "node ../../../freelang-v11/bootstrap.js run {source}",
+      "native_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh {source} {out} >/tmp/fl-afj-db-parity.log 2>&1 && {out}",
+      "cases": [{ "name": "db_backend_smoke_input", "source": "app.fl" }]
+    },
+    "evidence_validator": "node ../../../AFL-Core-2/src/validate-done-claim.js {claim}"
+  }
+}
