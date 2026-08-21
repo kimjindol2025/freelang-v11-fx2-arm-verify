@@ -1,0 +1,2 @@
+(defn inc [$x] (+ $x 1))
+(println (inc 2))

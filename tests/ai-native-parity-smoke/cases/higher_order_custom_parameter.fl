@@ -1,0 +1,3 @@
+(defn apply-callback [$callback $x] ($callback $x))
+(defn double [$x] (* $x 2))
+(println (apply-callback double 4))

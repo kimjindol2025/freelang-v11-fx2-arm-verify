@@ -1,0 +1,2 @@
+(defn rest [$value] $value)
+(println (rest 5))

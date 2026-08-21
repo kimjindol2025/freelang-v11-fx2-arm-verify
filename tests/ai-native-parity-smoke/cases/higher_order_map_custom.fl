@@ -1,0 +1,3 @@
+(defn transform [$mapper $items] (map $mapper $items))
+(defn plus-one [$x] (+ $x 1))
+(println (transform plus-one (list 1 2 3)))

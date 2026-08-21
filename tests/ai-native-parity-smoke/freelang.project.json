@@ -77,6 +77,66 @@
         {
           "name": "json",
           "source": "cases/json.fl"
+        },
+        {
+          "name": "rest_local_symbol",
+          "source": "cases/rest_local_symbol.fl"
+        },
+        {
+          "name": "rest_param_symbol",
+          "source": "cases/rest_param_symbol.fl"
+        },
+        {
+          "name": "symbol_inc",
+          "source": "cases/symbol_inc.fl"
+        },
+        {
+          "name": "higher_order_custom_parameter",
+          "source": "cases/higher_order_custom_parameter.fl"
+        },
+        {
+          "name": "function_alias",
+          "source": "cases/function_alias.fl"
+        },
+        {
+          "name": "nested_function_call",
+          "source": "cases/nested_function_call.fl"
+        },
+        {
+          "name": "symbol_main",
+          "source": "cases/symbol_main.fl"
+        },
+        {
+          "name": "symbol_printf",
+          "source": "cases/symbol_printf.fl"
+        },
+        {
+          "name": "append_nested",
+          "source": "cases/append_nested.fl"
+        },
+        {
+          "name": "multiple_scopes",
+          "source": "cases/multiple_scopes.fl"
+        },
+        {
+          "name": "same_variable_scopes",
+          "source": "cases/same_variable_scopes.fl"
+        },
+        {
+          "name": "higher_order_map_custom",
+          "source": "cases/higher_order_map_custom.fl"
+        },
+        {
+          "name": "higher_order_filter_custom",
+          "source": "cases/higher_order_filter_custom.fl"
+        },
+        {
+          "name": "higher_order_reduce_custom",
+          "source": "cases/higher_order_reduce_custom.fl"
+        },
+        {
+          "name": "append_basic",
+          "source": "cases/append_basic.fl"
         }
       ]
     },

@@ -1,0 +1,3 @@
+(defn fold [$callback $initial $items] (reduce $callback $initial $items))
+(defn add [$a $b] (+ $a $b))
+(println (fold add 0 (list 1 2 3)))

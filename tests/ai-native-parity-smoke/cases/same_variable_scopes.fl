@@ -1,0 +1,3 @@
+(defn left [$value] (let [item (+ $value 1)] item))
+(defn right [$value] (let [item (+ $value 2)] item))
+(println (list (left 3) (right 3)))

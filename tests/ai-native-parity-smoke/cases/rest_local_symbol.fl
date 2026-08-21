@@ -1,0 +1,1 @@
+(println (let [rest 10] rest))

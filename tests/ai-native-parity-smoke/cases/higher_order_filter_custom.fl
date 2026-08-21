@@ -1,0 +1,3 @@
+(defn select [$predicate $items] (filter $predicate $items))
+(defn even [$x] (= (% $x 2) 0))
+(println (select even (list 1 2 3 4)))

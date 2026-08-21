@@ -1,0 +1,4 @@
+(defn scoped [$x]
+  (let [value (+ $x 1)]
+    (let [value (+ value 1)] value)))
+(println (scoped 3))

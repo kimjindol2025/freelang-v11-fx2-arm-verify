@@ -1,0 +1,3 @@
+(defn apply-twice [$callback $x] ($callback ($callback $x)))
+(defn inc [$x] (+ $x 1))
+(println (apply-twice inc 3))
