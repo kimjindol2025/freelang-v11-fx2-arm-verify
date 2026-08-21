@@ -1,0 +1,85 @@
+{
+  "project": {
+    "name": "ai-native-parity-smoke"
+  },
+  "runtime": {
+    "language": "FreeLang AFJ",
+    "interpreter": "v11-bootstrap",
+    "native": "fx2-cgc"
+  },
+  "verify": {
+    "input": "cases/number.fl",
+    "evidence_dir": ".fl-verify/evidence",
+    "syntax_command": "node ../../../freelang-v11/bootstrap.js check cases/number.fl",
+    "type_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh cases/number.fl /tmp/fl-type-check-number --check >/tmp/fl-type-check.log 2>&1",
+    "interpreter_command": "node ../../../freelang-v11/bootstrap.js run cases/number.fl",
+    "native_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh cases/number.fl /tmp/fl-native-check >/tmp/fl-native-check.log 2>&1 && /tmp/fl-native-check",
+    "parity": {
+      "interpreter_command": "node ../../../freelang-v11/bootstrap.js run {source}",
+      "native_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh {source} {out} >/tmp/fl-parity-build.log 2>&1 && {out}",
+      "cases": [
+        {
+          "name": "number",
+          "source": "cases/number.fl"
+        },
+        {
+          "name": "string",
+          "source": "cases/string.fl"
+        },
+        {
+          "name": "bool",
+          "source": "cases/bool.fl"
+        },
+        {
+          "name": "nil",
+          "source": "cases/nil.fl"
+        },
+        {
+          "name": "list",
+          "source": "cases/list.fl"
+        },
+        {
+          "name": "object",
+          "source": "cases/object.fl"
+        },
+        {
+          "name": "function",
+          "source": "cases/function.fl"
+        },
+        {
+          "name": "recursion",
+          "source": "cases/recursion.fl"
+        },
+        {
+          "name": "scope",
+          "source": "cases/scope.fl"
+        },
+        {
+          "name": "higher_order",
+          "source": "cases/higher_order.fl"
+        },
+        {
+          "name": "map",
+          "source": "cases/map.fl"
+        },
+        {
+          "name": "filter",
+          "source": "cases/filter.fl"
+        },
+        {
+          "name": "reduce",
+          "source": "cases/reduce.fl"
+        },
+        {
+          "name": "rest",
+          "source": "cases/rest.fl"
+        },
+        {
+          "name": "json",
+          "source": "cases/json.fl"
+        }
+      ]
+    },
+    "evidence_validator": "node ../../../AFL-Core-2/src/validate-done-claim.js {claim}"
+  }
+}

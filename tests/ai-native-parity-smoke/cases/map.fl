@@ -1,0 +1,2 @@
+(define myinc (fn [x] (+ x 1)))
+(println (map myinc (list 1 2 3)))

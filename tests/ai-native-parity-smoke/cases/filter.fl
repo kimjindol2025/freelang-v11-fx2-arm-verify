@@ -1,0 +1,2 @@
+(define even (fn [x] (= (% x 2) 0)))
+(println (filter even (list 1 2 3 4)))

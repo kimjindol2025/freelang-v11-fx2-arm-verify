@@ -1,0 +1,2 @@
+(define add (fn [a b] (+ a b)))
+(println (reduce add 0 (list 1 2 3)))
