@@ -1,0 +1,45 @@
+(define SERVER_PORT (if (nil? (env_get "PORT")) 0 (str-to-num (env_get "PORT"))))
+(define DB_DIR (if (nil? (env_get "AFJ_API_DB_DIR")) "/tmp/fl-verify-afj-api-default" (env_get "AFJ_API_DB_DIR")))
+
+(defn db-append [$id $value]
+  (let [$payload (json-stringify $value)
+        $command (str "node /root/lang/afl-db/v2-afj/src/cli.js append "
+                     DB_DIR " " $id " '" $payload "' " 1)]
+    (json_parse (shell_exec $command))))
+
+(defn db-read [$id]
+  (let [$command (str "node /root/lang/afl-db/v2-afj/src/cli.js read-key "
+                     DB_DIR " " $id)]
+    (json_parse (shell_exec $command))))
+
+(defn handle-health [$req]
+  (server_json (json-stringify {"status" "ok" "runtime" "FreeLang AFJ"})))
+
+(defn handle-create [$req]
+  (let [$body (get $req "body")
+        $name (get $body "name")
+        $phone (get $body "phone")]
+    (if (nil? $phone)
+      (server_status 400 (json-stringify {"error" "PHONE_REQUIRED"}))
+      (let [$id (str "customer-" (str-trim (shell_exec "date +%s%N")) )
+            $value {"id" $id "name" $name "phone" $phone}
+            $result (db-append $id $value)]
+        (if (get $result "ok")
+          (server_status 201 (json-stringify {"id" $id "name" $name "phone" $phone}))
+          (server_status 500 (json-stringify {"error" "AFJ_DB_WRITE_FAILED"})))))))
+
+(defn handle-get [$req]
+  (let [$id (get (get $req "params") "id")
+        $result (db-read $id)]
+    (if (nil? (get $result "value"))
+      (server_status 404 (json-stringify {"error" "CUSTOMER_NOT_FOUND"}))
+      (server_json (json-stringify (get $result "value"))))))
+
+(server_get "/health" "handle-health")
+(server_post "/api/customers" "handle-create")
+(server_get "/api/customers/:id" "handle-get")
+
+(println (str "FreeLang AFJ API on port " SERVER_PORT))
+(if (= SERVER_PORT 0)
+  (println "FreeLang AFJ API check mode")
+  (server_start SERVER_PORT))

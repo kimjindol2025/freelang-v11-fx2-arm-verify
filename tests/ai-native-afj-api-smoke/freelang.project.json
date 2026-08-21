@@ -1,0 +1,50 @@
+{
+  "project": {
+    "name": "ai-native-afj-api-smoke"
+  },
+  "runtime": {
+    "language": "FreeLang AFJ",
+    "interpreter": "v11-bootstrap",
+    "native": "fx2-cgc"
+  },
+  "backend": {
+    "type": "freelang-afj",
+    "build_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl api-bin",
+    "start_command": "node ../../../freelang-v11/bootstrap.js run app.fl",
+    "health": "/health"
+  },
+  "database": {
+    "type": "afj-db",
+    "root": "../../../afl-db/v2-afj",
+    "verify": {
+      "mode": "smoke"
+    }
+  },
+  "api": {
+    "required": true,
+    "smoke": {
+      "write_route": "/api/customers",
+      "read_route": "/api/customers/{id}",
+      "validation_route": "/api/customers"
+    }
+  },
+  "verify": {
+    "input": "app.fl",
+    "evidence_dir": ".fl-verify/evidence",
+    "syntax_command": "node ../../../freelang-v11/bootstrap.js check app.fl",
+    "type_command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-type --check >/tmp/fl-afj-api-type.log 2>&1",
+    "interpreter_command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run app.fl",
+    "native_command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-native >/tmp/fl-afj-api-native.log 2>&1 && /tmp/fl-afj-api-native",
+    "parity": {
+      "interpreter_command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run {source}",
+      "native_command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh {source} {out} >/tmp/fl-afj-api-parity.log 2>&1 && {out}",
+      "cases": [
+        {
+          "name": "api_backend_source",
+          "source": "app.fl"
+        }
+      ]
+    },
+    "evidence_validator": "node ../../../AFL-Core-2/src/validate-done-claim.js {claim}"
+  }
+}

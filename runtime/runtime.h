@@ -696,6 +696,7 @@ FLValue smtp_test(FLValue to);
 
 /* 쉘 실행 */
 FLValue shell_run(FLValue cmd);
+FLValue shell_exec(FLValue cmd);
 
 /* PDF TTF 폰트 임베딩 */
 FLValue pdf_ttf_load(FLValue path);

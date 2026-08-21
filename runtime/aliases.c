@@ -1593,6 +1593,7 @@ FLValue smtp_test(FLValue to) { return fl_smtp_test(to); }
 extern FLValue _fl_process_run(FLValue cmd);
 extern FLValue _fl_process_exit(FLValue code);
 FLValue shell_run(FLValue cmd) { return _fl_process_run(cmd); }
+FLValue shell_exec(FLValue cmd) { return _fl_process_run(cmd); }
 FLValue process_exit(FLValue code) { return _fl_process_exit(code); }
 
 /* ── assoc-in / update-in ── */
