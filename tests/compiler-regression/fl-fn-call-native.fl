@@ -1,0 +1,15 @@
+(defn zero-call [] (fxb-net-local-ip))
+(defn check-native [$fd]
+  (let [$a (fxb-net-set-nonblocking $fd false)
+        $b (fxb-net-set-keepalive $fd false 60 10 5)
+        $c (fxb-net-wait $fd 1 0)
+        $d (fxb-net-close $fd)]
+    (and (= $a true) (= $b true) (= (get $c "status") "timeout") (= $d nil))))
+(defn check-closure [$x]
+  (let [$f (fn [$v] (+ $x $v))]
+    (= ($f 2) 44)))
+(defn run []
+  (let [$fd (fxb-net-listen-address "127.0.0.1" 0)
+        $future (fl-future (fn [] (zero-call)))]
+    (and (> $fd 0) (check-native $fd) (check-closure 42) (> (length (fl-deref $future)) 0))))
+(if (run) (println "fl-fn-call-native PASS") (println "fl-fn-call-native FAIL"))
