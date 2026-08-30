@@ -1,0 +1,21 @@
+;; Real socket timeout-deadline test. The peer accepts but never reads.
+(let [$listen (fxb-net-listen-address "127.0.0.1" 19390)
+      $payload (str-repeat "x" 16777216)]
+  (if (< $listen 0)
+    (process-exit 1)
+    (do (fxb-net-set-nonblocking $listen true)
+        (let [$client (fxb-net-connect-timeout "127.0.0.1" 19390 3000)
+              $accepted (fxb-net-accept-timeout $listen 3000)]
+          (if (or (not (= (get $client "status") "ok"))
+                  (not (= (get $accepted "status") "ok")))
+            (process-exit 1)
+            (let [$result (fxb-net-write-bytes-timeout (get $client "fd") $payload 16777216 3000)]
+              (println (str "TIMEOUT_STATUS=" (get $result "status")))
+              (println (str "TIMEOUT_BYTES=" (get $result "bytes")))
+              (fxb-net-close (get $accepted "fd"))
+              (fxb-net-close (get $client "fd"))
+              (fxb-net-close $listen)
+              (if (and (= (get $result "status") "timeout")
+                       (< (get $result "bytes") 16777216))
+                (process-exit 0)
+                (process-exit 1))))))))
