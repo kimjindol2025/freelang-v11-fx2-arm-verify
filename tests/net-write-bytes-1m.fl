@@ -1,0 +1,25 @@
+;; FreeLang relay: read arbitrary bytes, then call the new API for each chunk.
+(defn relay [$infd $outfd $left $total]
+  (if (<= $left 0) $total
+    (let [$want (if (< $left 65536) $left 65536)
+          $r (fxb-net-read-timeout $infd $want 10000)]
+      (if (not (= (get $r "status") "ok")) -1
+        (let [$n (get $r "bytes")
+              $w (fxb-net-write-bytes-timeout $outfd (get $r "data") $n 10000)]
+          (if (not (and (= (get $w "status") "ok") (= (get $w "bytes") $n))) -1
+            (relay $infd $outfd (- $left $n) (+ $total $n))))))))
+
+(let [$listen (fxb-net-listen-address "127.0.0.1" 19384)
+      $dest (fxb-net-connect-timeout "127.0.0.1" 19385 5000)]
+  (if (or (< $listen 0) (not (= (get $dest "status") "ok")))
+    (process-exit 1)
+    (do (fxb-net-set-nonblocking $listen true)
+        (let [$a (fxb-net-accept-timeout $listen 10000)]
+          (if (not (= (get $a "status") "ok")) (process-exit 1)
+            (let [$infd (get $a "fd") $outfd (get $dest "fd")
+                  $total (relay $infd $outfd 1048576 0)]
+              (println (str "RELAY_BYTES=" (num-to-str $total)))
+              (fxb-net-close $infd)
+              (fxb-net-close $outfd)
+              (fxb-net-close $listen)
+              (if (= $total 1048576) (process-exit 0) (process-exit 1))))))))

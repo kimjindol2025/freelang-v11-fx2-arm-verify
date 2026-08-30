@@ -1,0 +1,16 @@
+;; Bounds and invalid-input calls for the additive binary write API.
+(let [$data "abc"
+      $oversize (fxb-net-write-bytes-timeout -1 $data 4 10)
+      $negative (fxb-net-write-bytes-timeout -1 $data -1 10)
+      $bad-fd (fxb-net-write-bytes-timeout 999999 $data 3 10)
+      $bad-type (fxb-net-write-bytes-timeout -1 123 0 10)]
+  (println (str "OVERSIZE=" (get $oversize "status")))
+  (println (str "NEGATIVE=" (get $negative "status")))
+  (println (str "BAD_FD=" (get $bad-fd "status")))
+  (println (str "BAD_TYPE=" (get $bad-type "status")))
+  (if (and (= (get $oversize "status") "error")
+           (= (get $negative "status") "error")
+           (= (get $bad-fd "status") "error")
+           (= (get $bad-type "status") "error"))
+    (process-exit 0)
+    (process-exit 1)))

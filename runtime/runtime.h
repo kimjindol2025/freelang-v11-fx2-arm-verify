@@ -592,6 +592,20 @@ FLValue fxb_net_connect(FLValue host, FLValue port);
 FLValue fxb_net_send_file(FLValue fd, FLValue path);
 FLValue fxb_net_recv_file(FLValue fd, FLValue path);
 FLValue fxb_net_local_ip(void);
+FLValue fxb_net_listen_address(FLValue address, FLValue port);
+FLValue fxb_net_set_nonblocking(FLValue fd, FLValue enabled);
+FLValue fxb_net_wait(FLValue fd, FLValue events, FLValue timeout_ms);
+FLValue fxb_net_accept_timeout(FLValue server_fd, FLValue timeout_ms);
+FLValue fxb_net_connect_timeout(FLValue host, FLValue port, FLValue timeout_ms);
+FLValue fxb_net_read_timeout(FLValue fd, FLValue max_bytes, FLValue timeout_ms);
+FLValue fxb_net_write_timeout(FLValue fd, FLValue data, FLValue timeout_ms);
+FLValue fxb_net_write_bytes(FLValue fd, FLValue data, FLValue length);
+FLValue fxb_net_write_bytes_timeout(FLValue fd, FLValue data, FLValue length, FLValue timeout_ms);
+FLValue fxb_net_set_keepalive(FLValue fd, FLValue enabled, FLValue idle, FLValue interval, FLValue count);
+FLValue fxb_net_track_connection(FLValue fd);
+FLValue fxb_net_untrack_connection(FLValue fd);
+FLValue fxb_net_listener_shutdown(FLValue fd, FLValue timeout_ms);
+
 
 #endif /* FREELANG_RUNTIME_H */
 
