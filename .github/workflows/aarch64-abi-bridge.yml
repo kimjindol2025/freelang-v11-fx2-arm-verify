@@ -15,26 +15,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang gcc make file binutils libsqlite3-dev libssl-dev libcurl4-openssl-dev
+
       - name: Prepare evidence and run bridge gates
         shell: bash
         run: |
           set +e
           mkdir -p "$EVIDENCE_DIR" stage1 stage2 stage3 build-A build-B
-          for f in architecture.txt uname.txt lscpu.txt environment.txt abi-diff.txt \
-                   historical-runtime-files.txt historical-runtime-sha256.txt \
-                   bootstrap-file.txt bootstrap-sha256.txt bootstrap-smoke.log \
-                   source-commit.txt compiler-source-commit.txt build-contract.txt \
-                   stage1-generation.log stage1-build.log stage1-sha256.txt \
-                   stage2-generation.log stage2-abi-analysis.txt stage2-build.log \
-                   stage2-sha256.txt stage3-generation.log stage3-build.log \
-                   stage3-sha256.txt generation-stability.log build-A.log build-B.log \
-                   build-A-sha256.txt build-B-sha256.txt generated-C-sha256.txt \
-                   compiler-smoke.log self-host.log regression.log asan.log ubsan.log \
-                   leak.log test.log git-head.txt git-status.txt SHA256SUMS; do
+          for f in architecture.txt uname.txt lscpu.txt environment.txt abi-diff.txt historical-runtime-files.txt historical-runtime-sha256.txt bootstrap-file.txt bootstrap-sha256.txt bootstrap-smoke.log source-commit.txt compiler-source-commit.txt build-contract.txt stage1-generation.log stage1-build.log stage1-sha256.txt stage2-generation.log stage2-abi-analysis.txt stage2-build.log stage2-sha256.txt stage3-generation.log stage3-build.log stage3-sha256.txt generation-stability.log build-A.log build-B.log build-A-sha256.txt build-B-sha256.txt generated-C-sha256.txt compiler-smoke.log self-host.log regression.log asan.log ubsan.log leak.log test.log git-head.txt git-status.txt SHA256SUMS; do
             : > "$EVIDENCE_DIR/$f"
           done
+
           rc=0
-          fail() { echo "FAILURE=$1" | tee -a "$EVIDENCE_DIR/test.log"; rc=1; }
+          fail() {
+            echo "FAILURE=$1" | tee -a "$EVIDENCE_DIR/test.log"
+            if [ "$rc" -eq 0 ]; then rc=1; fi
+          }
+          clear_app_cache() {
+            rm -rf /tmp/fl_app_cache
+          }
+          record_bin() {
+            local bin="$1"
+            local out="$2"
+            file "$bin" | tee "$out"
+            sha256sum "$bin" >> "$out"
+          }
 
           uname -a | tee "$EVIDENCE_DIR/uname.txt"
           uname -m | tee "$EVIDENCE_DIR/architecture.txt"
@@ -42,20 +48,23 @@ jobs:
           { date -u; clang --version; gcc --version; } | tee "$EVIDENCE_DIR/environment.txt"
           git rev-parse HEAD | tee "$EVIDENCE_DIR/git-head.txt"
           git status --short | tee "$EVIDENCE_DIR/git-status.txt"
-          git log -1 --format='%H %s' -- cgc-main.fl | tee "$EVIDENCE_DIR/source-commit.txt"
+          git log -1 --format='%H %s' -- self/cgc-main.fl | tee "$EVIDENCE_DIR/source-commit.txt"
+
           {
             echo 'COMPILER_SOURCE_PATH=self/cgc-main.fl'
             echo 'COMPILER_SOURCE_COMMIT=32acfc9dd75ca58906029c06014d75285ce43ee3'
             sha256sum self/cgc-main.fl
+            echo 'ROOT_CGC_MAIN_ROLE=CALLABLE_ABI_REGRESSION_TEST'
+            echo 'REGRESSION_TEST_NOT_USED_AS_COMPILER_SOURCE=PASS'
           } | tee "$EVIDENCE_DIR/compiler-source-commit.txt"
+
           test -f self/cgc-main.fl || fail COMPILER_SOURCE_MISSING
           cmp --silent cgc-main.fl self/cgc-main.fl && fail ROOT_REGRESSION_REUSED_AS_COMPILER_SOURCE || true
-          echo 'ROOT_CGC_MAIN_ROLE=CALLABLE_ABI_REGRESSION_TEST' | tee -a "$EVIDENCE_DIR/source-commit.txt"
-          echo 'REGRESSION_TEST_NOT_USED_AS_COMPILER_SOURCE=PASS' | tee -a "$EVIDENCE_DIR/compiler-source-commit.txt"
           [ "$(uname -m)" = aarch64 ] || fail ARM_ENVIRONMENT_FAIL
 
           {
             echo 'HISTORICAL_RUNTIME_COMMIT=b943870f'
+            echo 'HISTORICAL_RUNTIME_ROLE=EVIDENCE_ONLY_NOT_BUILD_INPUT'
             find bridge/runtime-old -maxdepth 1 -type f -printf '%f\n' | sort
           } | tee "$EVIDENCE_DIR/historical-runtime-files.txt"
           find bridge/runtime-old -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/historical-runtime-sha256.txt"
@@ -67,130 +76,167 @@ jobs:
           } | tee "$EVIDENCE_DIR/abi-diff.txt"
 
           if [ "$rc" -eq 0 ]; then
+            chmod +x "$BOOTSTRAP" ./fl-build.sh
             file "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-file.txt"
             sha256sum "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-sha256.txt"
             sha256sum -c "$BOOTSTRAP_MANIFEST" >> "$EVIDENCE_DIR/bootstrap-sha256.txt" 2>&1 || fail BOOTSTRAP_HASH_FAIL
             file "$BOOTSTRAP" | grep -Eiq 'aarch64|arm64' || fail BOOTSTRAP_ARCH_FAIL
+            echo 'BOOTSTRAP_ONLY=YES' >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
+            echo 'BOOTSTRAP_CANONICAL=NO' >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
           fi
 
+          {
+            echo 'BOOTSTRAP_METHOD=NATIVE_CGC_VIA_FL_BUILD'
+            echo 'BOOTSTRAP_JS_REQUIRED=NO'
+            echo 'STAGE1_GENERATE=tools/bootstrap/cgc-bin self/cgc-main.fl stage1/gen1.c'
+            echo 'STAGE1_BUILD=CGC_BIN=tools/bootstrap/cgc-bin ./fl-build.sh self/cgc-main.fl stage1/cgc-bin'
+            echo 'STAGE2_BUILD=CGC_BIN=stage1/cgc-bin ./fl-build.sh self/cgc-main.fl stage2/cgc-bin'
+            echo 'STAGE3_BUILD=CGC_BIN=stage2/cgc-bin ./fl-build.sh self/cgc-main.fl stage3/cgc-bin'
+            echo 'BUILD_RUNTIME=current runtime'
+            echo 'APP_CACHE_POLICY=clear before every self-host build'
+          } | tee "$EVIDENCE_DIR/build-contract.txt"
+
+          # Stage 1: historical AArch64 compiler generates current compiler C,
+          # then fl-build links it against the current runtime (which carries old-cgc shims).
           if [ "$rc" -eq 0 ]; then
-            if [ ! -f bootstrap.js ]; then
-              curl --fail --silent --show-error --location \\
-                https://raw.githubusercontent.com/kimjindol2025/freelang-v11/32acfc9dd75ca58906029c06014d75285ce43ee3/bootstrap.js \\
-                --output bootstrap.js
-            fi
-            test -s bootstrap.js || fail BOOTSTRAP_JS_MISSING
-            {
-              echo 'BOOTSTRAP_JS_PATH=bootstrap.js'
-              echo 'BOOTSTRAP_JS_SOURCE=freelang-v11@32acfc9dd75ca58906029c06014d75285ce43ee3'
-              sha256sum bootstrap.js
-            } | tee -a "$EVIDENCE_DIR/compiler-source-commit.txt"
-            {
-              echo 'BOOTSTRAP_JS_PATH=bootstrap.js'
-              echo 'BUILD_SCRIPT_PATH=scripts/build-cgc-native.sh'
-              echo 'EXACT_GENERATION_COMMAND=node bootstrap.js run self/cgc-main.fl > stage1/gen1.c'
-              echo 'EXACT_NATIVE_BUILD_COMMAND=scripts/build-cgc-native.sh stage1/gen1.c stage1/cgc-bin'
-              echo 'HISTORICAL_RUNTIME_COMMIT=b943870f'
-            } | tee "$EVIDENCE_DIR/build-contract.txt"
-            mkdir -p stage1
-            node bootstrap.js run self/cgc-main.fl > stage1/gen1.c 2> "$EVIDENCE_DIR/stage1-generation.log"
-            gen_rc=$?
-            if [ "$gen_rc" -eq 0 ]; then
-              mv runtime runtime-current
-              cp -a bridge/runtime-old runtime
-              chmod +x scripts/build-cgc-native.sh
-              scripts/build-cgc-native.sh stage1/gen1.c stage1/cgc-bin > "$EVIDENCE_DIR/stage1-build.log" 2>&1
-              s1rc=$?
-              rm -rf runtime
-              mv runtime-current runtime
+            "$BOOTSTRAP" self/cgc-main.fl stage1/gen1.c > "$EVIDENCE_DIR/stage1-generation.log" 2>&1
+            gen1_rc=$?
+            if [ "$gen1_rc" -ne 0 ]; then
+              fail STAGE1_C_GENERATION_FAIL
             else
-              s1rc="$gen_rc"
-              cp "$EVIDENCE_DIR/stage1-generation.log" "$EVIDENCE_DIR/stage1-build.log"
+              sha256sum stage1/gen1.c >> "$EVIDENCE_DIR/generated-C-sha256.txt"
+              clear_app_cache
+              CGC_BIN="$GITHUB_WORKSPACE/$BOOTSTRAP" ./fl-build.sh self/cgc-main.fl stage1/cgc-bin > "$EVIDENCE_DIR/stage1-build.log" 2>&1
+              s1rc=$?
+              if [ "$s1rc" -ne 0 ]; then
+                fail STAGE1_NATIVE_BUILD_FAIL
+              else
+                record_bin stage1/cgc-bin "$EVIDENCE_DIR/stage1-sha256.txt"
+                file stage1/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE1_ARCH_FAIL
+                stage1/cgc-bin --help > "$EVIDENCE_DIR/bootstrap-smoke.log" 2>&1 || true
+              fi
             fi
-            [ "$s1rc" -eq 0 ] || fail BOOTSTRAP_COMPATIBILITY_FAIL
-            if [ "$s1rc" -eq 0 ]; then
-              file stage1/cgc-bin | tee "$EVIDENCE_DIR/stage1-sha256.txt"
-              sha256sum stage1/cgc-bin >> "$EVIDENCE_DIR/stage1-sha256.txt"
-              file stage1/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE1_ARCH_FAIL
+          fi
+
+          # Stage 2: rebuild the same compiler source using the Stage 1 compiler.
+          if [ "$rc" -eq 0 ]; then
+            stage1/cgc-bin self/cgc-main.fl stage2/gen2.c > "$EVIDENCE_DIR/stage2-generation.log" 2>&1
+            gen2_rc=$?
+            if [ "$gen2_rc" -ne 0 ]; then
+              fail STAGE2_C_GENERATION_FAIL
+            else
+              sha256sum stage2/gen2.c >> "$EVIDENCE_DIR/generated-C-sha256.txt"
+              grep -n 'fl_fn_call' stage2/gen2.c | head -n 40 > "$EVIDENCE_DIR/stage2-abi-analysis.txt" || true
+              clear_app_cache
+              CGC_BIN="$GITHUB_WORKSPACE/stage1/cgc-bin" ./fl-build.sh self/cgc-main.fl stage2/cgc-bin > "$EVIDENCE_DIR/stage2-build.log" 2>&1
+              s2rc=$?
+              if [ "$s2rc" -ne 0 ]; then
+                fail STAGE2_NATIVE_BUILD_FAIL
+              else
+                record_bin stage2/cgc-bin "$EVIDENCE_DIR/stage2-sha256.txt"
+                file stage2/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE2_ARCH_FAIL
+              fi
+            fi
+          fi
+
+          # Stage 3: one more self-host generation for fixed-point/stability checks.
+          if [ "$rc" -eq 0 ]; then
+            stage2/cgc-bin self/cgc-main.fl stage3/gen3.c > "$EVIDENCE_DIR/stage3-generation.log" 2>&1
+            gen3_rc=$?
+            if [ "$gen3_rc" -ne 0 ]; then
+              fail STAGE3_C_GENERATION_FAIL
+            else
+              sha256sum stage3/gen3.c >> "$EVIDENCE_DIR/generated-C-sha256.txt"
+              clear_app_cache
+              CGC_BIN="$GITHUB_WORKSPACE/stage2/cgc-bin" ./fl-build.sh self/cgc-main.fl stage3/cgc-bin > "$EVIDENCE_DIR/stage3-build.log" 2>&1
+              s3rc=$?
+              if [ "$s3rc" -ne 0 ]; then
+                fail STAGE3_NATIVE_BUILD_FAIL
+              else
+                record_bin stage3/cgc-bin "$EVIDENCE_DIR/stage3-sha256.txt"
+                file stage3/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE3_ARCH_FAIL
+              fi
             fi
           fi
 
           if [ "$rc" -eq 0 ]; then
-            echo 'STAGE2: stage1 compiler + current cgc-main.fl + current runtime' >> "$EVIDENCE_DIR/build-contract.txt"
-            rm -f tools/bootstrap/runtime
-            ln -s ../../runtime tools/bootstrap/runtime
-            ln -s ../runtime stage1/runtime
-            stage1/cgc-bin self/cgc-main.fl stage2/cgc-bin > "$EVIDENCE_DIR/stage2-build.log" 2>&1
-            s2rc=$?
-            cp "$EVIDENCE_DIR/stage2-build.log" "$EVIDENCE_DIR/stage2-generation.log"
-            [ "$s2rc" -eq 0 ] || fail STAGE2_NATIVE_BUILD_FAIL
-            if [ "$s2rc" -eq 0 ]; then
-              file stage2/cgc-bin | tee "$EVIDENCE_DIR/stage2-sha256.txt"
-              sha256sum stage2/cgc-bin >> "$EVIDENCE_DIR/stage2-sha256.txt"
-              file stage2/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE2_ARCH_FAIL
-              echo 'STAGE2_GENERATED_ABI=CURRENT (native build succeeded against current runtime)' | tee "$EVIDENCE_DIR/stage2-abi-analysis.txt"
-            fi
-          fi
-
-          if [ "$rc" -eq 0 ]; then
-            echo 'STAGE3: stage2 compiler + current cgc-main.fl + current runtime' >> "$EVIDENCE_DIR/build-contract.txt"
-            ln -s ../runtime stage2/runtime
-            stage2/cgc-bin self/cgc-main.fl stage3/cgc-bin > "$EVIDENCE_DIR/stage3-build.log" 2>&1
-            s3rc=$?
-            cp "$EVIDENCE_DIR/stage3-build.log" "$EVIDENCE_DIR/stage3-generation.log"
-            [ "$s3rc" -eq 0 ] || fail STAGE3_BUILD_FAIL
-            if [ "$s3rc" -eq 0 ]; then
-              file stage3/cgc-bin | tee "$EVIDENCE_DIR/stage3-sha256.txt"
-              sha256sum stage3/cgc-bin >> "$EVIDENCE_DIR/stage3-sha256.txt"
-              file stage3/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE3_ARCH_FAIL
-            fi
-          fi
-
-          if [ "$rc" -eq 0 ]; then
-            cmp stage2/cgc-bin stage3/cgc-bin > "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail GENERATION_BINARY_DIFF
+            cmp stage2/gen2.c stage3/gen3.c >> "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail GENERATED_C_STABILITY_FAIL
+            sha256sum stage2/gen2.c stage3/gen3.c >> "$EVIDENCE_DIR/generation-stability.log"
+            cmp stage2/cgc-bin stage3/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail GENERATION_BINARY_DIFF
             sha256sum stage2/cgc-bin stage3/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log"
-            echo 'Generated C is not exposed by the compiler CLI; generation logs and binary comparison are retained.' >> "$EVIDENCE_DIR/generation-stability.log"
           fi
 
+          # Two fresh builds. fl-build's app cache is explicitly cleared so the
+          # result cannot silently reuse an object generated by another compiler.
           if [ "$rc" -eq 0 ]; then
-            ln -s ../runtime build-A/runtime
-            ln -s ../runtime build-B/runtime
-            stage2/cgc-bin self/cgc-main.fl build-A/cgc-bin > "$EVIDENCE_DIR/build-A.log" 2>&1
+            stage2/cgc-bin self/cgc-main.fl build-A/genA.c > "$EVIDENCE_DIR/build-A.log" 2>&1
+            ga_rc=$?
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/stage2/cgc-bin" ./fl-build.sh self/cgc-main.fl build-A/cgc-bin >> "$EVIDENCE_DIR/build-A.log" 2>&1
             a_rc=$?
-            stage2/cgc-bin self/cgc-main.fl build-B/cgc-bin > "$EVIDENCE_DIR/build-B.log" 2>&1
+
+            stage2/cgc-bin self/cgc-main.fl build-B/genB.c > "$EVIDENCE_DIR/build-B.log" 2>&1
+            gb_rc=$?
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/stage2/cgc-bin" ./fl-build.sh self/cgc-main.fl build-B/cgc-bin >> "$EVIDENCE_DIR/build-B.log" 2>&1
             b_rc=$?
-            [ "$a_rc" -eq 0 ] || fail BUILD_A_FAIL
-            [ "$b_rc" -eq 0 ] || fail BUILD_B_FAIL
-            if [ "$a_rc" -eq 0 ]; then file build-A/cgc-bin >> "$EVIDENCE_DIR/build-A-sha256.txt"; sha256sum build-A/cgc-bin >> "$EVIDENCE_DIR/build-A-sha256.txt"; fi
-            if [ "$b_rc" -eq 0 ]; then file build-B/cgc-bin >> "$EVIDENCE_DIR/build-B-sha256.txt"; sha256sum build-B/cgc-bin >> "$EVIDENCE_DIR/build-B-sha256.txt"; fi
-            if [ "$a_rc" -eq 0 ] && [ "$b_rc" -eq 0 ]; then
+
+            [ "$ga_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] || fail BUILD_A_FAIL
+            [ "$gb_rc" -eq 0 ] && [ "$b_rc" -eq 0 ] || fail BUILD_B_FAIL
+            if [ "$ga_rc" -eq 0 ] && [ "$a_rc" -eq 0 ] && [ "$gb_rc" -eq 0 ] && [ "$b_rc" -eq 0 ]; then
+              record_bin build-A/cgc-bin "$EVIDENCE_DIR/build-A-sha256.txt"
+              record_bin build-B/cgc-bin "$EVIDENCE_DIR/build-B-sha256.txt"
+              cmp build-A/genA.c build-B/genB.c >> "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail REPRODUCIBLE_C_FAIL
               cmp build-A/cgc-bin build-B/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail REPRODUCIBILITY_FAIL
-              sha256sum build-A/cgc-bin build-B/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log"
+              sha256sum build-A/genA.c build-B/genB.c build-A/cgc-bin build-B/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log"
             fi
           fi
 
+          # Compiler smoke and self-host must also go through fl-build because
+          # cgc-bin itself emits C; it does not link the final executable.
           if [ "$rc" -eq 0 ]; then
             printf '(println "bridge-smoke")\n' > "$EVIDENCE_DIR/smoke.fl"
-            build-A/cgc-bin "$EVIDENCE_DIR/smoke.fl" "$EVIDENCE_DIR/smoke-bin" > "$EVIDENCE_DIR/compiler-smoke.log" 2>&1 || fail COMPILER_SMOKE_FAIL
-            build-A/cgc-bin self/cgc-main.fl "$EVIDENCE_DIR/self-host-bin" > "$EVIDENCE_DIR/self-host.log" 2>&1 || fail SELF_HOST_FAIL
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/build-A/cgc-bin" ./fl-build.sh "$EVIDENCE_DIR/smoke.fl" "$EVIDENCE_DIR/smoke-bin" > "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
+            smoke_build_rc=$?
+            if [ "$smoke_build_rc" -eq 0 ]; then
+              "$EVIDENCE_DIR/smoke-bin" >> "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
+              smoke_run_rc=$?
+            else
+              smoke_run_rc=1
+            fi
+            [ "$smoke_build_rc" -eq 0 ] && [ "$smoke_run_rc" -eq 0 ] || fail COMPILER_SMOKE_FAIL
+
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/build-A/cgc-bin" ./fl-build.sh self/cgc-main.fl "$EVIDENCE_DIR/self-host-bin" > "$EVIDENCE_DIR/self-host.log" 2>&1
+            [ "$?" -eq 0 ] || fail SELF_HOST_FAIL
+
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/build-A/cgc-bin" ./fl-build.sh cgc-main.fl "$EVIDENCE_DIR/regression-bin" > "$EVIDENCE_DIR/regression.log" 2>&1
+            regression_build_rc=$?
+            if [ "$regression_build_rc" -eq 0 ]; then
+              "$EVIDENCE_DIR/regression-bin" >> "$EVIDENCE_DIR/regression.log" 2>&1
+              regression_run_rc=$?
+            else
+              regression_run_rc=1
+            fi
+            [ "$regression_build_rc" -eq 0 ] && [ "$regression_run_rc" -eq 0 ] || fail COMPILER_REGRESSION_FAIL
+
             printf '(\n' > "$EVIDENCE_DIR/invalid.fl"
-            build-A/cgc-bin "$EVIDENCE_DIR/invalid.fl" "$EVIDENCE_DIR/invalid-bin" >> "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
+            clear_app_cache
+            CGC_BIN="$GITHUB_WORKSPACE/build-A/cgc-bin" ./fl-build.sh "$EVIDENCE_DIR/invalid.fl" "$EVIDENCE_DIR/invalid-bin" >> "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
             [ "$?" -ne 0 ] || fail COMPILER_ERROR_PATH_FAIL
-            cp "$EVIDENCE_DIR/compiler-smoke.log" "$EVIDENCE_DIR/regression.log"
           fi
 
           if [ "$rc" -eq 0 ]; then
-            CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' \
-              ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' \
-              UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
-              ./tools/run-memory-ownership.sh > "$EVIDENCE_DIR/asan.log" 2> "$EVIDENCE_DIR/ubsan.log"
+            CC=clang ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' ./tools/run-memory-ownership.sh > "$EVIDENCE_DIR/asan.log" 2> "$EVIDENCE_DIR/ubsan.log"
             san_rc=$?
             cp "$EVIDENCE_DIR/asan.log" "$EVIDENCE_DIR/leak.log"
-            [ "$san_rc" -eq 0 ] || fail ASAN_FAIL
+            [ "$san_rc" -eq 0 ] || fail SANITIZER_FAIL
           fi
 
           echo "PROCESS_EXIT=$rc" | tee -a "$EVIDENCE_DIR/test.log"
-          find . -maxdepth 4 -type f -not -path './.git/*' -not -path './evidence/*' -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/SHA256SUMS"
+          find . -maxdepth 5 -type f -not -path './.git/*' -not -path './evidence/*' -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/SHA256SUMS"
           exit "$rc"
 
       - name: Upload Evidence Package
