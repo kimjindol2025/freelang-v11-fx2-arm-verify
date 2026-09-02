@@ -1,0 +1,19 @@
+STATUS=BLOCKED
+RECOVERY_ROUNDS=2
+ARM_WORKFLOW_EXECUTED=NO
+GENERATOR_FOUND=YES
+GENERATOR_TYPE=NODE
+GENERATOR_COMMIT=32acfc9dd75ca58906029c06014d75285ce43ee3
+GENERATOR_COMMAND=node --stack-size=8192 bootstrap.js run self/cgc-main.fl self/cgc-main.fl gen1.c
+GENERATOR_EXEC=FAIL
+GENERATOR_EXIT=139
+GENERATOR_ERROR=Node.js segmentation fault on kim-pro-73 x86_64
+GENERATOR_OUTPUT=C_SOURCE=NOT_VERIFIED
+GEN1_EXISTS=INVALID_STALE_OUTPUT
+GEN1_SIZE_BYTES=37
+GEN1_SHA256=3cffdac8810776b296c94d7a926a47078fc4e3d855d3bb179eb3a77cc8cbe7e3
+GENERATOR_DETERMINISTIC=NOT_RUN
+BUILD_CONTRACT_VERIFIED=PASS
+EXACT_NATIVE_BUILD_COMMAND=bash scripts/build-cgc-native.sh gen1.c gen1-bin
+WORKFLOW_CORRECTED=NO
+NEXT_ACTION=Do not repeat this command or run ARM workflow. Recover a provenance-controlled source generator/runtime combination or inspect the Node segfault separately.
