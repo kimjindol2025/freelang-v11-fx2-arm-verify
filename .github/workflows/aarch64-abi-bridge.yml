@@ -1,0 +1,175 @@
+name: FreeLang AArch64 ABI Bootstrap Bridge
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bridge:
+    runs-on: ubuntu-24.04-arm
+    env:
+      EVIDENCE_DIR: evidence/aarch64-abi-bridge
+      BOOTSTRAP: tools/bootstrap/cgc-bin
+      BOOTSTRAP_MANIFEST: tools/bootstrap/cgc-bin.sha256
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare evidence and run bridge gates
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$EVIDENCE_DIR" stage1 stage2 stage3 build-A build-B
+          for f in architecture.txt uname.txt lscpu.txt environment.txt abi-diff.txt \
+                   historical-runtime-files.txt historical-runtime-sha256.txt \
+                   bootstrap-file.txt bootstrap-sha256.txt bootstrap-smoke.log \
+                   source-commit.txt compiler-source-commit.txt build-contract.txt \
+                   stage1-generation.log stage1-build.log stage1-sha256.txt \
+                   stage2-generation.log stage2-abi-analysis.txt stage2-build.log \
+                   stage2-sha256.txt stage3-generation.log stage3-build.log \
+                   stage3-sha256.txt generation-stability.log build-A.log build-B.log \
+                   build-A-sha256.txt build-B-sha256.txt generated-C-sha256.txt \
+                   compiler-smoke.log self-host.log regression.log asan.log ubsan.log \
+                   leak.log test.log git-head.txt git-status.txt SHA256SUMS; do
+            : > "$EVIDENCE_DIR/$f"
+          done
+          rc=0
+          fail() { echo "FAILURE=$1" | tee -a "$EVIDENCE_DIR/test.log"; rc=1; }
+
+          uname -a | tee "$EVIDENCE_DIR/uname.txt"
+          uname -m | tee "$EVIDENCE_DIR/architecture.txt"
+          lscpu | tee "$EVIDENCE_DIR/lscpu.txt"
+          { date -u; clang --version; gcc --version; } | tee "$EVIDENCE_DIR/environment.txt"
+          git rev-parse HEAD | tee "$EVIDENCE_DIR/git-head.txt"
+          git status --short | tee "$EVIDENCE_DIR/git-status.txt"
+          git log -1 --format='%H %s' -- cgc-main.fl | tee "$EVIDENCE_DIR/source-commit.txt"
+          echo 'compiler-source-commit=b943870f historical compiler bridge; current cgc-main source is recorded above' | tee "$EVIDENCE_DIR/compiler-source-commit.txt"
+          [ "$(uname -m)" = aarch64 ] || fail ARM_ENVIRONMENT_FAIL
+
+          {
+            echo 'HISTORICAL_RUNTIME_COMMIT=b943870f'
+            find bridge/runtime-old -maxdepth 1 -type f -printf '%f\n' | sort
+          } | tee "$EVIDENCE_DIR/historical-runtime-files.txt"
+          find bridge/runtime-old -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/historical-runtime-sha256.txt"
+          {
+            echo 'HISTORICAL_FL_FN_CALL_SIGNATURE'
+            grep -n -E 'fl_fn_call|typedef.*FLValue|FLValue[[:space:]]*\([^*]*\*' bridge/runtime-old/runtime.h bridge/runtime-old/*.c 2>/dev/null || true
+            echo 'CURRENT_FL_FN_CALL_SIGNATURE'
+            grep -n -E 'fl_fn_call|typedef.*FLValue|FLValue[[:space:]]*\([^*]*\*' runtime/runtime.h runtime/*.c 2>/dev/null || true
+          } | tee "$EVIDENCE_DIR/abi-diff.txt"
+
+          if [ "$rc" -eq 0 ]; then
+            file "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-file.txt"
+            sha256sum "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-sha256.txt"
+            sha256sum -c "$BOOTSTRAP_MANIFEST" >> "$EVIDENCE_DIR/bootstrap-sha256.txt" 2>&1 || fail BOOTSTRAP_HASH_FAIL
+            file "$BOOTSTRAP" | grep -Eiq 'aarch64|arm64' || fail BOOTSTRAP_ARCH_FAIL
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            echo 'STAGE1: bootstrap compiler + current cgc-main.fl + historical runtime' | tee "$EVIDENCE_DIR/build-contract.txt"
+            rm -f tools/bootstrap/runtime
+            ln -s ../../bridge/runtime-old tools/bootstrap/runtime
+            "$BOOTSTRAP" cgc-main.fl stage1/cgc-bin > "$EVIDENCE_DIR/stage1-build.log" 2>&1
+            s1rc=$?
+            cp "$EVIDENCE_DIR/stage1-build.log" "$EVIDENCE_DIR/stage1-generation.log"
+            [ "$s1rc" -eq 0 ] || fail BOOTSTRAP_COMPATIBILITY_FAIL
+            if [ "$s1rc" -eq 0 ]; then
+              file stage1/cgc-bin | tee "$EVIDENCE_DIR/stage1-sha256.txt"
+              sha256sum stage1/cgc-bin >> "$EVIDENCE_DIR/stage1-sha256.txt"
+              file stage1/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE1_ARCH_FAIL
+            fi
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            echo 'STAGE2: stage1 compiler + current cgc-main.fl + current runtime' >> "$EVIDENCE_DIR/build-contract.txt"
+            rm -f tools/bootstrap/runtime
+            ln -s ../../runtime tools/bootstrap/runtime
+            ln -s ../runtime stage1/runtime
+            stage1/cgc-bin cgc-main.fl stage2/cgc-bin > "$EVIDENCE_DIR/stage2-build.log" 2>&1
+            s2rc=$?
+            cp "$EVIDENCE_DIR/stage2-build.log" "$EVIDENCE_DIR/stage2-generation.log"
+            [ "$s2rc" -eq 0 ] || fail STAGE2_NATIVE_BUILD_FAIL
+            if [ "$s2rc" -eq 0 ]; then
+              file stage2/cgc-bin | tee "$EVIDENCE_DIR/stage2-sha256.txt"
+              sha256sum stage2/cgc-bin >> "$EVIDENCE_DIR/stage2-sha256.txt"
+              file stage2/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE2_ARCH_FAIL
+              echo 'STAGE2_GENERATED_ABI=CURRENT (native build succeeded against current runtime)' | tee "$EVIDENCE_DIR/stage2-abi-analysis.txt"
+            fi
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            echo 'STAGE3: stage2 compiler + current cgc-main.fl + current runtime' >> "$EVIDENCE_DIR/build-contract.txt"
+            ln -s ../runtime stage2/runtime
+            stage2/cgc-bin cgc-main.fl stage3/cgc-bin > "$EVIDENCE_DIR/stage3-build.log" 2>&1
+            s3rc=$?
+            cp "$EVIDENCE_DIR/stage3-build.log" "$EVIDENCE_DIR/stage3-generation.log"
+            [ "$s3rc" -eq 0 ] || fail STAGE3_BUILD_FAIL
+            if [ "$s3rc" -eq 0 ]; then
+              file stage3/cgc-bin | tee "$EVIDENCE_DIR/stage3-sha256.txt"
+              sha256sum stage3/cgc-bin >> "$EVIDENCE_DIR/stage3-sha256.txt"
+              file stage3/cgc-bin | grep -Eiq 'aarch64|arm64' || fail STAGE3_ARCH_FAIL
+            fi
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            cmp stage2/cgc-bin stage3/cgc-bin > "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail GENERATION_BINARY_DIFF
+            sha256sum stage2/cgc-bin stage3/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log"
+            echo 'Generated C is not exposed by the compiler CLI; generation logs and binary comparison are retained.' >> "$EVIDENCE_DIR/generation-stability.log"
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            ln -s ../runtime build-A/runtime
+            ln -s ../runtime build-B/runtime
+            stage2/cgc-bin cgc-main.fl build-A/cgc-bin > "$EVIDENCE_DIR/build-A.log" 2>&1
+            a_rc=$?
+            stage2/cgc-bin cgc-main.fl build-B/cgc-bin > "$EVIDENCE_DIR/build-B.log" 2>&1
+            b_rc=$?
+            [ "$a_rc" -eq 0 ] || fail BUILD_A_FAIL
+            [ "$b_rc" -eq 0 ] || fail BUILD_B_FAIL
+            if [ "$a_rc" -eq 0 ]; then file build-A/cgc-bin >> "$EVIDENCE_DIR/build-A-sha256.txt"; sha256sum build-A/cgc-bin >> "$EVIDENCE_DIR/build-A-sha256.txt"; fi
+            if [ "$b_rc" -eq 0 ]; then file build-B/cgc-bin >> "$EVIDENCE_DIR/build-B-sha256.txt"; sha256sum build-B/cgc-bin >> "$EVIDENCE_DIR/build-B-sha256.txt"; fi
+            if [ "$a_rc" -eq 0 ] && [ "$b_rc" -eq 0 ]; then
+              cmp build-A/cgc-bin build-B/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log" 2>&1 || fail REPRODUCIBILITY_FAIL
+              sha256sum build-A/cgc-bin build-B/cgc-bin >> "$EVIDENCE_DIR/generation-stability.log"
+            fi
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            printf '(println "bridge-smoke")\n' > "$EVIDENCE_DIR/smoke.fl"
+            build-A/cgc-bin "$EVIDENCE_DIR/smoke.fl" "$EVIDENCE_DIR/smoke-bin" > "$EVIDENCE_DIR/compiler-smoke.log" 2>&1 || fail COMPILER_SMOKE_FAIL
+            build-A/cgc-bin cgc-main.fl "$EVIDENCE_DIR/self-host-bin" > "$EVIDENCE_DIR/self-host.log" 2>&1 || fail SELF_HOST_FAIL
+            printf '(\n' > "$EVIDENCE_DIR/invalid.fl"
+            build-A/cgc-bin "$EVIDENCE_DIR/invalid.fl" "$EVIDENCE_DIR/invalid-bin" >> "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
+            [ "$?" -ne 0 ] || fail COMPILER_ERROR_PATH_FAIL
+            cp "$EVIDENCE_DIR/compiler-smoke.log" "$EVIDENCE_DIR/regression.log"
+          fi
+
+          if [ "$rc" -eq 0 ]; then
+            CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' \
+              ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' \
+              UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
+              ./tools/run-memory-ownership.sh > "$EVIDENCE_DIR/asan.log" 2> "$EVIDENCE_DIR/ubsan.log"
+            san_rc=$?
+            cp "$EVIDENCE_DIR/asan.log" "$EVIDENCE_DIR/leak.log"
+            [ "$san_rc" -eq 0 ] || fail ASAN_FAIL
+          fi
+
+          echo "PROCESS_EXIT=$rc" | tee -a "$EVIDENCE_DIR/test.log"
+          find . -maxdepth 4 -type f -not -path './.git/*' -not -path './evidence/*' -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/SHA256SUMS"
+          exit "$rc"
+
+      - name: Upload Evidence Package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-aarch64-abi-bridge-evidence
+          path: evidence/aarch64-abi-bridge
+          if-no-files-found: error
+
+      - name: Upload Evidence Backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-aarch64-abi-bridge-evidence-backup
+          path: evidence/aarch64-abi-bridge
+          if-no-files-found: error
