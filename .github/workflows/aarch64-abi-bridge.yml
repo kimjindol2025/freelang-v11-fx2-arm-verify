@@ -43,7 +43,15 @@ jobs:
           git rev-parse HEAD | tee "$EVIDENCE_DIR/git-head.txt"
           git status --short | tee "$EVIDENCE_DIR/git-status.txt"
           git log -1 --format='%H %s' -- cgc-main.fl | tee "$EVIDENCE_DIR/source-commit.txt"
-          echo 'compiler-source-commit=b943870f historical compiler bridge; current cgc-main source is recorded above' | tee "$EVIDENCE_DIR/compiler-source-commit.txt"
+          {
+            echo 'COMPILER_SOURCE_PATH=self/cgc-main.fl'
+            echo 'COMPILER_SOURCE_COMMIT=32acfc9dd75ca58906029c06014d75285ce43ee3'
+            sha256sum self/cgc-main.fl
+          } | tee "$EVIDENCE_DIR/compiler-source-commit.txt"
+          test -f self/cgc-main.fl || fail COMPILER_SOURCE_MISSING
+          cmp --silent cgc-main.fl self/cgc-main.fl && fail ROOT_REGRESSION_REUSED_AS_COMPILER_SOURCE || true
+          echo 'ROOT_CGC_MAIN_ROLE=CALLABLE_ABI_REGRESSION_TEST' | tee -a "$EVIDENCE_DIR/source-commit.txt"
+          echo 'REGRESSION_TEST_NOT_USED_AS_COMPILER_SOURCE=PASS' | tee -a "$EVIDENCE_DIR/compiler-source-commit.txt"
           [ "$(uname -m)" = aarch64 ] || fail ARM_ENVIRONMENT_FAIL
 
           {
@@ -66,12 +74,28 @@ jobs:
           fi
 
           if [ "$rc" -eq 0 ]; then
-            echo 'STAGE1: bootstrap compiler + current cgc-main.fl + historical runtime' | tee "$EVIDENCE_DIR/build-contract.txt"
-            rm -f tools/bootstrap/runtime
-            ln -s ../../bridge/runtime-old tools/bootstrap/runtime
-            "$BOOTSTRAP" cgc-main.fl stage1/cgc-bin > "$EVIDENCE_DIR/stage1-build.log" 2>&1
-            s1rc=$?
-            cp "$EVIDENCE_DIR/stage1-build.log" "$EVIDENCE_DIR/stage1-generation.log"
+            {
+              echo 'BOOTSTRAP_JS_PATH=bootstrap.js'
+              echo 'BUILD_SCRIPT_PATH=scripts/build-cgc-native.sh'
+              echo 'EXACT_GENERATION_COMMAND=node bootstrap.js run self/cgc-main.fl > stage1/gen1.c'
+              echo 'EXACT_NATIVE_BUILD_COMMAND=scripts/build-cgc-native.sh stage1/gen1.c stage1/cgc-bin'
+              echo 'HISTORICAL_RUNTIME_COMMIT=b943870f'
+            } | tee "$EVIDENCE_DIR/build-contract.txt"
+            mkdir -p stage1
+            node bootstrap.js run self/cgc-main.fl > stage1/gen1.c 2> "$EVIDENCE_DIR/stage1-generation.log"
+            gen_rc=$?
+            if [ "$gen_rc" -eq 0 ]; then
+              mv runtime runtime-current
+              cp -a bridge/runtime-old runtime
+              chmod +x scripts/build-cgc-native.sh
+              scripts/build-cgc-native.sh stage1/gen1.c stage1/cgc-bin > "$EVIDENCE_DIR/stage1-build.log" 2>&1
+              s1rc=$?
+              rm -rf runtime
+              mv runtime-current runtime
+            else
+              s1rc="$gen_rc"
+              cp "$EVIDENCE_DIR/stage1-generation.log" "$EVIDENCE_DIR/stage1-build.log"
+            fi
             [ "$s1rc" -eq 0 ] || fail BOOTSTRAP_COMPATIBILITY_FAIL
             if [ "$s1rc" -eq 0 ]; then
               file stage1/cgc-bin | tee "$EVIDENCE_DIR/stage1-sha256.txt"
