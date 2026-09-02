@@ -120,7 +120,7 @@ jobs:
             rm -f tools/bootstrap/runtime
             ln -s ../../runtime tools/bootstrap/runtime
             ln -s ../runtime stage1/runtime
-            stage1/cgc-bin cgc-main.fl stage2/cgc-bin > "$EVIDENCE_DIR/stage2-build.log" 2>&1
+            stage1/cgc-bin self/cgc-main.fl stage2/cgc-bin > "$EVIDENCE_DIR/stage2-build.log" 2>&1
             s2rc=$?
             cp "$EVIDENCE_DIR/stage2-build.log" "$EVIDENCE_DIR/stage2-generation.log"
             [ "$s2rc" -eq 0 ] || fail STAGE2_NATIVE_BUILD_FAIL
@@ -135,7 +135,7 @@ jobs:
           if [ "$rc" -eq 0 ]; then
             echo 'STAGE3: stage2 compiler + current cgc-main.fl + current runtime' >> "$EVIDENCE_DIR/build-contract.txt"
             ln -s ../runtime stage2/runtime
-            stage2/cgc-bin cgc-main.fl stage3/cgc-bin > "$EVIDENCE_DIR/stage3-build.log" 2>&1
+            stage2/cgc-bin self/cgc-main.fl stage3/cgc-bin > "$EVIDENCE_DIR/stage3-build.log" 2>&1
             s3rc=$?
             cp "$EVIDENCE_DIR/stage3-build.log" "$EVIDENCE_DIR/stage3-generation.log"
             [ "$s3rc" -eq 0 ] || fail STAGE3_BUILD_FAIL
@@ -155,9 +155,9 @@ jobs:
           if [ "$rc" -eq 0 ]; then
             ln -s ../runtime build-A/runtime
             ln -s ../runtime build-B/runtime
-            stage2/cgc-bin cgc-main.fl build-A/cgc-bin > "$EVIDENCE_DIR/build-A.log" 2>&1
+            stage2/cgc-bin self/cgc-main.fl build-A/cgc-bin > "$EVIDENCE_DIR/build-A.log" 2>&1
             a_rc=$?
-            stage2/cgc-bin cgc-main.fl build-B/cgc-bin > "$EVIDENCE_DIR/build-B.log" 2>&1
+            stage2/cgc-bin self/cgc-main.fl build-B/cgc-bin > "$EVIDENCE_DIR/build-B.log" 2>&1
             b_rc=$?
             [ "$a_rc" -eq 0 ] || fail BUILD_A_FAIL
             [ "$b_rc" -eq 0 ] || fail BUILD_B_FAIL
@@ -172,7 +172,7 @@ jobs:
           if [ "$rc" -eq 0 ]; then
             printf '(println "bridge-smoke")\n' > "$EVIDENCE_DIR/smoke.fl"
             build-A/cgc-bin "$EVIDENCE_DIR/smoke.fl" "$EVIDENCE_DIR/smoke-bin" > "$EVIDENCE_DIR/compiler-smoke.log" 2>&1 || fail COMPILER_SMOKE_FAIL
-            build-A/cgc-bin cgc-main.fl "$EVIDENCE_DIR/self-host-bin" > "$EVIDENCE_DIR/self-host.log" 2>&1 || fail SELF_HOST_FAIL
+            build-A/cgc-bin self/cgc-main.fl "$EVIDENCE_DIR/self-host-bin" > "$EVIDENCE_DIR/self-host.log" 2>&1 || fail SELF_HOST_FAIL
             printf '(\n' > "$EVIDENCE_DIR/invalid.fl"
             build-A/cgc-bin "$EVIDENCE_DIR/invalid.fl" "$EVIDENCE_DIR/invalid-bin" >> "$EVIDENCE_DIR/compiler-smoke.log" 2>&1
             [ "$?" -ne 0 ] || fail COMPILER_ERROR_PATH_FAIL
