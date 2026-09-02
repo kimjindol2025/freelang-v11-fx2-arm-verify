@@ -40,7 +40,7 @@ jobs:
             file "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-file.txt"
             sha256sum "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-sha256.txt"
             sha256sum -c "$BOOTSTRAP_MANIFEST" >> "$EVIDENCE_DIR/bootstrap-sha256.txt" 2>&1 || fail BOOTSTRAP_HASH_FAIL
-            file "$BOOTSTRAP" | grep -q 'AArch64' || fail BOOTSTRAP_ARCH_FAIL
+            file "$BOOTSTRAP" | grep -Eiq 'aarch64|arm64' || fail BOOTSTRAP_ARCH_FAIL
             echo BOOTSTRAP_ONLY=YES >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
             echo BOOTSTRAP_CANONICAL=NO >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
           fi
