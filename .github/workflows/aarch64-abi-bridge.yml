@@ -74,6 +74,17 @@ jobs:
           fi
 
           if [ "$rc" -eq 0 ]; then
+            if [ ! -f bootstrap.js ]; then
+              curl --fail --silent --show-error --location \\
+                https://raw.githubusercontent.com/kimjindol2025/freelang-v11/32acfc9dd75ca58906029c06014d75285ce43ee3/bootstrap.js \\
+                --output bootstrap.js
+            fi
+            test -s bootstrap.js || fail BOOTSTRAP_JS_MISSING
+            {
+              echo 'BOOTSTRAP_JS_PATH=bootstrap.js'
+              echo 'BOOTSTRAP_JS_SOURCE=freelang-v11@32acfc9dd75ca58906029c06014d75285ce43ee3'
+              sha256sum bootstrap.js
+            } | tee -a "$EVIDENCE_DIR/compiler-source-commit.txt"
             {
               echo 'BOOTSTRAP_JS_PATH=bootstrap.js'
               echo 'BUILD_SCRIPT_PATH=scripts/build-cgc-native.sh'
