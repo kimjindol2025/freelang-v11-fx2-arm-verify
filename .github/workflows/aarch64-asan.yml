@@ -1,0 +1,88 @@
+name: FreeLang AArch64 Canonical Verification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  aarch64-canonical-verification:
+    runs-on: ubuntu-24.04-arm
+    env:
+      EVIDENCE_DIR: evidence/aarch64-canonical
+      BOOTSTRAP: tools/bootstrap/cgc-bin
+      BOOTSTRAP_MANIFEST: tools/bootstrap/cgc-bin.sha256
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize evidence
+        run: |
+          mkdir -p "$EVIDENCE_DIR" candidate/build-A candidate/build-B
+          for f in architecture.txt environment.txt bootstrap-file.txt bootstrap-sha256.txt bootstrap-smoke.log build-A.log build-B.log build-command.txt compiler-smoke.log self-host-smoke.log regression.log asan.log ubsan.log leak.log test.log git-status.txt git-head.txt sha256sums.txt; do : > "$EVIDENCE_DIR/$f"; done
+          git status --short > "$EVIDENCE_DIR/git-status.txt"
+          git rev-parse HEAD > "$EVIDENCE_DIR/git-head.txt"
+
+      - name: Install ARM dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc make file binutils libsqlite3-dev libssl-dev libcurl4-openssl-dev
+
+      - name: Bootstrap gate and verification sequence
+        shell: bash
+        run: |
+          set +e
+          rc=0
+          fail() { echo "FAILURE=$1" | tee -a "$EVIDENCE_DIR/test.log"; rc=1; }
+          { date -u; uname -a; uname -m; lscpu; clang --version; gcc --version; } | tee "$EVIDENCE_DIR/environment.txt"
+          uname -m | tee "$EVIDENCE_DIR/architecture.txt"
+          [ "$(uname -m)" = aarch64 ] || fail ENVIRONMENT_FAIL
+          if [ "$rc" -eq 0 ]; then
+            file "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-file.txt"
+            sha256sum "$BOOTSTRAP" | tee "$EVIDENCE_DIR/bootstrap-sha256.txt"
+            sha256sum -c "$BOOTSTRAP_MANIFEST" >> "$EVIDENCE_DIR/bootstrap-sha256.txt" 2>&1 || fail BOOTSTRAP_HASH_FAIL
+            file "$BOOTSTRAP" | grep -q 'AArch64' || fail BOOTSTRAP_ARCH_FAIL
+            echo BOOTSTRAP_ONLY=YES >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
+            echo BOOTSTRAP_CANONICAL=NO >> "$EVIDENCE_DIR/bootstrap-sha256.txt"
+          fi
+          if [ "$rc" -eq 0 ]; then
+            echo "$BOOTSTRAP cgc-main.fl $EVIDENCE_DIR/bootstrap-smoke.c" | tee "$EVIDENCE_DIR/build-command.txt"
+            "$BOOTSTRAP" cgc-main.fl "$EVIDENCE_DIR/bootstrap-smoke.c" > "$EVIDENCE_DIR/bootstrap-smoke.log" 2>&1 || fail BOOTSTRAP_SMOKE_FAIL
+          fi
+          if [ "$rc" -eq 0 ]; then
+            CGC_BIN="$GITHUB_WORKSPACE/$BOOTSTRAP" ./fl-build.sh cgc-main.fl candidate/build-A/cgc-bin > "$EVIDENCE_DIR/build-A.log" 2>&1 || fail BUILD_A_FAIL
+            file candidate/build-A/cgc-bin >> "$EVIDENCE_DIR/build-A.log" 2>&1
+            sha256sum candidate/build-A/cgc-bin >> "$EVIDENCE_DIR/build-A.log" 2>&1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            CGC_BIN="$GITHUB_WORKSPACE/$BOOTSTRAP" ./fl-build.sh cgc-main.fl candidate/build-B/cgc-bin > "$EVIDENCE_DIR/build-B.log" 2>&1 || fail BUILD_B_FAIL
+            file candidate/build-B/cgc-bin >> "$EVIDENCE_DIR/build-B.log" 2>&1
+            sha256sum candidate/build-B/cgc-bin >> "$EVIDENCE_DIR/build-B.log" 2>&1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            cmp candidate/build-A/cgc-bin candidate/build-B/cgc-bin > "$EVIDENCE_DIR/test.log" 2>&1 || fail REPRODUCIBILITY_FAIL
+            sha256sum candidate/build-A/cgc-bin candidate/build-B/cgc-bin >> "$EVIDENCE_DIR/test.log"
+            CGC_BIN="$GITHUB_WORKSPACE/candidate/build-A/cgc-bin" ./fl-build.sh cgc-main.fl "$EVIDENCE_DIR/compiler-smoke" > "$EVIDENCE_DIR/compiler-smoke.log" 2>&1 || fail COMPILER_SMOKE_FAIL
+            CGC_BIN="$GITHUB_WORKSPACE/candidate/build-A/cgc-bin" ./fl-build.sh cgc-main.fl "$EVIDENCE_DIR/self-host-smoke" > "$EVIDENCE_DIR/self-host-smoke.log" 2>&1 || fail SELF_HOST_FAIL
+            CGC_BIN="$GITHUB_WORKSPACE/candidate/build-A/cgc-bin" ./fl-build.sh cgc-main.fl "$EVIDENCE_DIR/regression" > "$EVIDENCE_DIR/regression.log" 2>&1 || fail COMPILER_REGRESSION_FAIL
+          fi
+          if [ "$rc" -eq 0 ]; then
+            CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' ./tools/run-memory-ownership.sh > "$EVIDENCE_DIR/asan.log" 2> "$EVIDENCE_DIR/ubsan.log"
+            sanitizer_rc=$?
+            [ "$sanitizer_rc" -eq 0 ] || fail SANITIZER_FAIL
+            cp "$EVIDENCE_DIR/asan.log" "$EVIDENCE_DIR/leak.log"
+          fi
+          echo "PROCESS_EXIT=$rc" | tee -a "$EVIDENCE_DIR/test.log"
+          exit "$rc"
+
+      - name: Freeze evidence hashes
+        if: always()
+        run: |
+          find . -maxdepth 4 -type f -not -path './.git/*' -not -path './evidence/*' -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/sha256sums.txt"
+
+      - name: Upload Evidence Package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-aarch64-canonical-evidence
+          path: evidence/aarch64-canonical
+          if-no-files-found: error
