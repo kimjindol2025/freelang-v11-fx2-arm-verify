@@ -1,0 +1,9 @@
+ORIGINAL_REPOSITORY=https://github.com/kimjindol2025/freelang-v11.git
+ORIGINAL_COMMIT=32acfc9dd75ca58906029c06014d75285ce43ee3
+ORIGINAL_PATH=bootstrap.js
+GENERATOR_TYPE=NODE
+GENERATOR_ROLE=SOURCE_GENERATOR_BOOTSTRAP_ONLY
+CANONICAL=NO
+RECOVERY_BASIS=git history docs/BUILD-SYSTEM.md and scripts/verify-l4-fixpoint.sh
+EXACT_GENERATION_COMMAND=node --stack-size=8192 bootstrap.js run self/cgc-main.fl self/cgc-main.fl gen1.c
+VERIFICATION_COMMAND=73 kim-pro-73 with pinned raw files from commit 32acfc9dd75ca58906029c06014d75285ce43ee3
