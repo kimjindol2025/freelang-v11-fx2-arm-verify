@@ -9,6 +9,7 @@
 #define CHECK(cond, name) do { if (!(cond)) FAIL(name); else PASS(name); } while(0)
 
 int main(void) {
+    fl_arena_begin();
     /* ── 값 생성 ── */
     FLValue ni = fl_nil();
     CHECK(ni.tag == FL_NIL, "fl_nil tag");
@@ -129,6 +130,7 @@ int main(void) {
     fl_println(fl_int(42));
     printf("(above should be 42)\n");
 
+    fl_arena_destroy();
     printf("\nAll tests PASS\n");
     return 0;
 }

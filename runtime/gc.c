@@ -106,6 +106,18 @@ void* fl_arena_alloc(size_t size) {
     return ptr;
 }
 
+void fl_arena_destroy(void) {
+    if (!g_arena) return;
+    ArenaChunk* c = g_arena->first;
+    while (c) {
+        ArenaChunk* next = c->next;
+        free(c);
+        c = next;
+    }
+    free(g_arena);
+    g_arena = NULL;
+}
+
 void fl_arena_end(void) {
     /* 아레나 리셋만 (메모리 유지 — 다음 요청에 재사용) */
     if (!g_arena) return;

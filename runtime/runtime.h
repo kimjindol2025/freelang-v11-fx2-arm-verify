@@ -520,6 +520,7 @@ FLValue mariadb_one_p(FLValue conn, FLValue sql, FLValue params);
 void    fl_arena_begin(void);
 void*   fl_arena_alloc(size_t size);
 void    fl_arena_end(void);
+void    fl_arena_destroy(void);
 void    fl_arena_stats(void);
 void*   fl_perm_alloc(size_t size);
 void    fl_perm_cleanup(void);
