@@ -1,0 +1,98 @@
+name: FreeLang AArch64 V6 Native Candidate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  aarch64-v6:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc make file binutils libsqlite3-dev libssl-dev libcurl4-openssl-dev
+
+      - name: Native ARM rebuild and fixed-point gates
+        shell: bash
+        run: |
+          set +e
+          E=evidence/aarch64-v6
+          mkdir -p "$E" stage1 stage2 stage3 build-A build-B
+          rc=0
+          fail() { echo "FAILURE=$1" | tee -a "$E/status.txt"; rc=1; }
+          { date -u; uname -a; uname -m; lscpu; clang --version; gcc --version; } > "$E/environment.txt" 2>&1
+          git rev-parse HEAD > "$E/git-head.txt"
+          git status --short > "$E/git-status.txt"
+          sha256sum self/cgc-main.fl target-gen1.c scripts/build-cgc-native.sh > "$E/source-build-sha256.txt" 2>&1
+          [ "$(uname -m)" = aarch64 ] || fail ARM_ENVIRONMENT_FAIL
+          [ -s target-gen1.c ] || fail VERIFIED_GEN1_MISSING
+          if [ "$rc" -eq 0 ]; then
+            bash scripts/build-cgc-native.sh target-gen1.c stage1/cgc-bin > "$E/stage1-build.log" 2>&1 || fail ARM_STAGE1_BUILD_FAIL
+            file stage1/cgc-bin >> "$E/stage1-build.log" 2>&1
+            sha256sum stage1/cgc-bin >> "$E/stage1-build.log" 2>&1
+            file stage1/cgc-bin | grep -Eiq 'aarch64|arm64' || fail ARM_STAGE1_ARCH_FAIL
+          fi
+          if [ "$rc" -eq 0 ]; then
+            stage1/cgc-bin self/cgc-main.fl stage2/gen2.c > "$E/stage2-generation.log" 2>&1 || fail ARM_STAGE2_GENERATION_FAIL
+            bash scripts/build-cgc-native.sh stage2/gen2.c stage2/cgc-bin > "$E/stage2-build.log" 2>&1 || fail ARM_STAGE2_BUILD_FAIL
+            file stage2/cgc-bin >> "$E/stage2-build.log" 2>&1
+            sha256sum stage2/cgc-bin >> "$E/stage2-build.log" 2>&1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            stage2/cgc-bin self/cgc-main.fl stage3/gen3.c > "$E/stage3-generation.log" 2>&1 || fail ARM_STAGE3_GENERATION_FAIL
+            bash scripts/build-cgc-native.sh stage3/gen3.c stage3/cgc-bin > "$E/stage3-build.log" 2>&1 || fail ARM_STAGE3_BUILD_FAIL
+            file stage3/cgc-bin >> "$E/stage3-build.log" 2>&1
+            sha256sum stage3/cgc-bin >> "$E/stage3-build.log" 2>&1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            cmp stage2/gen2.c stage3/gen3.c > "$E/c-fixedpoint.log" 2>&1 || fail ARM_C_FIXEDPOINT_FAIL
+            sha256sum stage2/gen2.c stage3/gen3.c >> "$E/c-fixedpoint.log"
+            cmp stage2/cgc-bin stage3/cgc-bin > "$E/binary-compare.log" 2>&1
+            bcmp=$?
+            sha256sum stage2/cgc-bin stage3/cgc-bin >> "$E/binary-compare.log"
+            if [ "$bcmp" -ne 0 ]; then
+              echo BINARY_FIXEDPOINT=EXPLAINED_METADATA_DIFF >> "$E/binary-compare.log"
+              readelf -n stage2/cgc-bin | grep 'Build ID' >> "$E/binary-compare.log"
+              readelf -n stage3/cgc-bin | grep 'Build ID' >> "$E/binary-compare.log"
+            else
+              echo BINARY_FIXEDPOINT=PASS >> "$E/binary-compare.log"
+            fi
+          fi
+          if [ "$rc" -eq 0 ]; then
+            rm -rf /tmp/fl_app_cache
+            stage2/cgc-bin self/cgc-main.fl build-A/gen.c > "$E/build-A.log" 2>&1
+            a=$?
+            stage2/cgc-bin self/cgc-main.fl build-B/gen.c > "$E/build-B.log" 2>&1
+            b=$?
+            [ "$a" -eq 0 ] || fail ARM_BUILD_A_FAIL
+            [ "$b" -eq 0 ] || fail ARM_BUILD_B_FAIL
+            [ "$a" -eq 0 ] && [ "$b" -eq 0 ] && cmp build-A/gen.c build-B/gen.c || fail ARM_GENERATED_C_REPRODUCIBILITY_FAIL
+            sha256sum build-A/gen.c build-B/gen.c >> "$E/build-reproducibility.log" 2>&1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            printf '(println "arm-v6-smoke")\n' > "$E/smoke.fl"
+            stage2/cgc-bin "$E/smoke.fl" "$E/smoke.c" > "$E/compiler-smoke.log" 2>&1 || fail ARM_COMPILER_SMOKE_FAIL
+            stage2/cgc-bin self/cgc-main.fl "$E/self-host.c" > "$E/self-host.log" 2>&1 || fail ARM_SELF_HOST_SMOKE_FAIL
+            printf '(\n' > "$E/invalid.fl"
+            stage2/cgc-bin "$E/invalid.fl" "$E/invalid.c" > "$E/error-path.log" 2>&1
+            [ "$?" -ne 0 ] || fail ARM_ERROR_PATH_FAIL
+          fi
+          if [ "$rc" -eq 0 ]; then
+            CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' ./tools/run-memory-ownership.sh > "$E/asan.log" 2> "$E/ubsan.log"
+            s=$?
+            cp "$E/asan.log" "$E/leak.log"
+            [ "$s" -eq 0 ] || fail SANITIZER_FAIL
+          fi
+          echo "PROCESS_EXIT=$rc" >> "$E/status.txt"
+          find "$E" -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+          exit "$rc"
+
+      - name: Upload Evidence Package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-aarch64-v6-evidence
+          path: evidence/aarch64-v6
+          if-no-files-found: error
