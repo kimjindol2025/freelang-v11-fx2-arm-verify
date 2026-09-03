@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make file binutils libsqlite3-dev libssl-dev libcurl4-openssl-dev
       - name: Verify ARM runner and collect ELF evidence
         shell: bash
         run: |
@@ -54,6 +58,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make file binutils libsqlite3-dev libssl-dev libcurl4-openssl-dev
       - name: Run parity corpus
         shell: bash
         run: |
