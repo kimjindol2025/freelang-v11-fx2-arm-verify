@@ -1,0 +1,83 @@
+name: FreeLang ARM V6 REP2 Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arm-reproducibility:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ARM runner and collect ELF evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          E=evidence/rep2-arm
+          mkdir -p "$E" build-a build-b
+          uname -a > "$E/environment.txt"
+          uname -m >> "$E/environment.txt"
+          git rev-parse HEAD > "$E/git-head.txt"
+          test "$(uname -m)" = aarch64
+          bash scripts/build-cgc-native.sh target-gen1.c "$E/stage1-bin" > "$E/stage1.log" 2>&1
+          "$E/stage1-bin" self/cgc-main.fl "$E/gen2.c" > "$E/generation.log" 2>&1
+          bash scripts/build-cgc-native.sh "$E/gen2.c" "$E/compiler-bin" >> "$E/generation.log" 2>&1
+          "$E/compiler-bin" self/cgc-main.fl build-a/gen.c > "$E/build-a.log" 2>&1
+          "$E/compiler-bin" self/cgc-main.fl build-b/gen.c > "$E/build-b.log" 2>&1
+          bash scripts/build-cgc-native.sh build-a/gen.c build-a/cgc-bin >> "$E/build-a.log" 2>&1
+          bash scripts/build-cgc-native.sh build-b/gen.c build-b/cgc-bin >> "$E/build-b.log" 2>&1
+          sha256sum build-a/gen.c build-b/gen.c build-a/cgc-bin build-b/cgc-bin > "$E/hashes.txt"
+          cmp build-a/gen.c build-b/gen.c > "$E/generated-c.cmp"
+          cmp build-a/cgc-bin build-b/cgc-bin > "$E/binary.cmp" || true
+          for b in build-a/cgc-bin build-b/cgc-bin; do
+            n=$(basename "$b")
+            file "$b" > "$E/$n.file"
+            readelf -h -l -S -n "$b" > "$E/$n.elf" 2>&1
+            readelf -Ws "$b" > "$E/$n.symbols" 2>&1
+            readelf -rW "$b" > "$E/$n.relocs" 2>&1
+            objdump -d "$b" > "$E/$n.disassembly" 2>&1
+          done
+          readelf -S build-a/cgc-bin > "$E/sections-a.txt"
+          readelf -S build-b/cgc-bin > "$E/sections-b.txt"
+          find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+      - name: Upload ARM REP2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-arm-v6-rep2
+          path: evidence/rep2-arm
+          if-no-files-found: error
+
+  x86-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run parity corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          E=evidence/rep2-x86
+          mkdir -p "$E/results"
+          uname -a > "$E/environment.txt"
+          uname -m >> "$E/environment.txt"
+          git rev-parse HEAD > "$E/git-head.txt"
+          test "$(uname -m)" = x86_64
+          bash scripts/build-cgc-native.sh target-gen1.c "$E/stage1-bin" > "$E/build.log" 2>&1
+          "$E/stage1-bin" self/cgc-main.fl "$E/gen2.c" >> "$E/build.log" 2>&1
+          bash scripts/build-cgc-native.sh "$E/gen2.c" "$E/compiler-bin" >> "$E/build.log" 2>&1
+          for src in tests/ai-native-parity-smoke/cases/*.fl; do
+            name=$(basename "$src" .fl)
+            "$E/compiler-bin" "$src" "$E/results/$name.c" > "$E/results/$name.compile" 2>&1
+            bash scripts/build-cgc-native.sh "$E/results/$name.c" "$E/results/$name.bin" >> "$E/results/$name.compile" 2>&1
+            "$E/results/$name.bin" > "$E/results/$name.stdout" 2> "$E/results/$name.stderr" || true
+          done
+          sha256sum "$E"/results/*.stdout "$E"/results/*.stderr > "$E/output-sha256.txt"
+      - name: Upload x86 REP2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-x86-rep2
+          path: evidence/rep2-x86
+          if-no-files-found: error
