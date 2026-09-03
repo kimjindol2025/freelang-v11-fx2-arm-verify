@@ -35,6 +35,23 @@ RUNTIME_MODULES=(
   "process.c"
   "json.c"
   "cgc-bridge.c"
+  "http.c"
+  "websocket.c"
+  "http_client.c"
+  "sse.c"
+  "aliases.c"
+  "gc.c"
+  "sqlite.c"
+  "debug.c"
+  "jit.c"
+  "fx-builtin-shim.c"
+  "regex.c"
+  "smtp.c"
+  "pdf_ttf.c"
+  "pdf_img.c"
+  "net.c"
+  "builtins-shim.c"
+  "mariadb.c"
 )
 
 for module in "${RUNTIME_MODULES[@]}"; do
@@ -56,7 +73,8 @@ gcc -Wall -Wextra \
   -o "$OUTPUT_BIN" \
   "$INPUT_C" \
   $RUNTIME_SOURCES \
-  -lm
+  runtime/user-fns.c \
+  -rdynamic -lpthread -lm -ldl -lsqlite3 -lssl -lcrypto -lcurl
 
 if [[ $? -eq 0 ]]; then
   echo "✅ 성공: $OUTPUT_BIN ($(stat --format=%s "$OUTPUT_BIN") bytes)"
