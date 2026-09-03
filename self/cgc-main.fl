@@ -684,6 +684,9 @@
                 "!" "_b")]]
     (if (c-reserved? $raw) (str "fl_" $raw) $raw)))
 
+(defn c-user-name [$n]
+  (str "fl_user_" (c-name $n)))
+
 ;; ── 메인 dispatch ──
 
 (defn cgc [$n]
@@ -693,9 +696,10 @@
     [(= (get $n :kind) "variable")
       (let [[$name (get $n :name)]
             [$cn   (c-name $name)]
+            [$un   (c-user-name $name)]
             [$line (get $n :line)]]
-        (if (includes-item @known-defns-atom $cn)
-          (str "fl_fn_new(__fl_wrap_" $cn ", 0, NULL)")
+        (if (includes-item @known-defns-atom $un)
+          (str "fl_fn_new(__fl_wrap_" $un ", 0, NULL)")
           ;; 알려진 함수/변수가 아니면 경고 출력 (컴파일 시점)
           (if (not (includes-item @known-fncall-targets-atom $cn))
             (do
@@ -725,9 +729,9 @@
                         [(= $v "true")  "fl_bool(true)"]
                         [(= $v "false") "fl_bool(false)"]
                         [(or (= $v "nil") (= $v "null")) "fl_nil()"]
-                        [true (let [[$cn (c-name $v)]]
-                                (if (includes-item @known-defns-atom $cn)
-                                  (str "fl_fn_new(__fl_wrap_" $cn ", 0, NULL)")
+                        [true (let [[$cn (c-name $v)] [$un (c-user-name $v)]]
+                                (if (includes-item @known-defns-atom $un)
+                                  (str "fl_fn_new(__fl_wrap_" $un ", 0, NULL)")
                                   $cn))])]
     [true
      (do (println (str "[CGC-ERR] unsupported literal type=" (get $n :type) " line=" (get $n :line)))
@@ -1056,10 +1060,11 @@
     [(str-starts-with $op "$")
      (cgc-fncall (c-name (slice $op 1 (length $op))) $args)]
     [true
-     (let [[$cn (c-name $op)]]
-       (if (includes-item @known-fncall-targets-atom $cn)
-         (cgc-fncall $cn $args)
-         (str $cn "(" (cgc-args $args) ")")))]))
+     (let [[$raw (c-name $op)]
+             [$cn (c-user-name $op)]]
+       (if (includes-item @known-fncall-targets-atom $raw)
+         (cgc-fncall $raw $args)
+         (str (if (includes-item @known-defns-atom $cn) $cn $raw) "(" (cgc-args $args) ")")))]))
 
 ;; ── S19/S20: fn lambda → static FLClosure 추출 (capture 지원) ──
 
@@ -1246,7 +1251,7 @@
 ;; ── defn (최상위) ──
 
 (defn cgc-defn-impl [$args]
-  (let [[$name (c-name (cgc-extract-name (get $args 0)))]
+  (let [[$name (c-user-name (cgc-extract-name (get $args 0)))]
         [$param-items (get-block-items (get $args 1))]
         [$ps (cgc-params $param-items)]
         [$pnames (cgc-fn-param-names $param-items 0 [])]]
@@ -1271,7 +1276,7 @@
       (reset! cgc-defn-depth-atom (- @cgc-defn-depth-atom 1))
       (reset! outer-params-atom $saved-params)
       (if (> $depth 0)
-        (let [[$name (c-name (cgc-extract-name (get $args 0)))]
+        (let [[$name (c-user-name (cgc-extract-name (get $args 0)))]
               [$param-items (get-block-items (get $args 1))]
               [$ps (cgc-params $param-items)]]
           (swap! cgc-hoisted-fns-atom push $result)
@@ -1354,7 +1359,7 @@
     (let [[$n (get $_nodes $i)]]
     (recur (+ $i 1)
       (if (and (= (get $n :kind) "sexpr") (= (get $n :op) "defn"))
-        (let [[$name (c-name (cgc-extract-name (get (get $n :args) 0)))]
+        (let [[$name (c-user-name (cgc-extract-name (get (get $n :args) 0)))]
               [$ps (cgc-params (get-block-items (get (get $n :args) 1)))]]
           (swap! known-defns-atom push $name)
           (str $acc
