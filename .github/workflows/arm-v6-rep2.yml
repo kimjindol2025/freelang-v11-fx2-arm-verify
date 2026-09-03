@@ -77,8 +77,7 @@ jobs:
           bash scripts/build-cgc-native.sh "$E/gen2.c" "$E/compiler-bin" >> "$E/build.log" 2>&1
           for src in tests/ai-native-parity-smoke/cases/*.fl; do
             name=$(basename "$src" .fl)
-            "$E/compiler-bin" "$src" "$E/results/$name.c" > "$E/results/$name.compile" 2>&1
-            bash scripts/build-cgc-native.sh "$E/results/$name.c" "$E/results/$name.bin" >> "$E/results/$name.compile" 2>&1
+            CGC_BIN="$E/compiler-bin" bash fl-build.sh "$src" "$E/results/$name.bin" > "$E/results/$name.compile" 2>&1
             "$E/results/$name.bin" > "$E/results/$name.stdout" 2> "$E/results/$name.stderr" || true
           done
           sha256sum "$E"/results/*.stdout "$E"/results/*.stderr > "$E/output-sha256.txt"
