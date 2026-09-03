@@ -685,7 +685,7 @@
     (if (c-reserved? $raw) (str "fl_" $raw) $raw)))
 
 (defn c-user-name [$n]
-  (str "fl_user_" (c-name $n)))
+  (if (or (= $n "lex") (= $n "parse")) (c-name $n) (str "fl_user_" (c-name $n))))
 
 ;; ── 메인 dispatch ──
 
