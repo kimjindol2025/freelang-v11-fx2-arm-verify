@@ -174,12 +174,14 @@ jobs:
           if cmp -s "$E/elf-analysis/build-A.comment.bin" "$E/elf-analysis/build-B.comment.bin"; then COMMENT=PASS; else COMMENT=FAIL; fi
           ROOT="$PWD"
           mkdir -p "$E/runtime-A" "$E/runtime-B"
+          set +x
           set +e
           ( cd "$E/runtime-A" && "$ROOT/$A" "$ROOT/self/cgc-main.fl" output.c ) > "$E/runtime-A.stdout" 2> "$E/runtime-A.stderr"
           A_EXIT=$?
           ( cd "$E/runtime-B" && "$ROOT/$B" "$ROOT/self/cgc-main.fl" output.c ) > "$E/runtime-B.stdout" 2> "$E/runtime-B.stderr"
           B_EXIT=$?
           set -e
+          set -x
           if test "$A_EXIT" -eq 0; then A_RUN=PASS; else A_RUN=FAIL; fi
           if test "$B_EXIT" -eq 0; then B_RUN=PASS; else B_RUN=FAIL; fi
           if test "$A_EXIT" -eq "$B_EXIT"; then EXIT_MATCH=PASS; else EXIT_MATCH=FAIL; fi
