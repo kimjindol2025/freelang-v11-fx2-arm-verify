@@ -117,6 +117,38 @@ jobs:
             [ "$san_rc" -eq 0 ] || rc=1
           fi
 
+          mkdir -p "$E/results"
+          regression_count=0
+          regression_pass=0
+          for src in \
+            tests/ai-native-parity-smoke/cases/append_basic.fl \
+            tests/ai-native-parity-smoke/cases/append_nested.fl \
+            tests/ai-native-parity-smoke/cases/bool.fl \
+            tests/ai-native-parity-smoke/cases/filter.fl \
+            tests/ai-native-parity-smoke/cases/function.fl \
+            tests/ai-native-parity-smoke/cases/function_alias.fl \
+            tests/ai-native-parity-smoke/cases/higher_order.fl \
+            tests/ai-native-parity-smoke/cases/higher_order_custom_parameter.fl; do
+            name=$(basename "$src" .fl)
+            regression_count=$((regression_count + 1))
+            CGC_BIN="$E/stage2-debug" bash fl-build.sh "$src" "$E/results/$name.bin" > "$E/results/$name.compile" 2>&1
+            case_compile_rc=$?
+            if [ "$case_compile_rc" -ne 0 ]; then
+              rc=1
+              continue
+            fi
+            "$E/results/$name.bin" > "$E/results/$name.stdout" 2> "$E/results/$name.stderr"
+            case_run_rc=$?
+            if [ "$case_run_rc" -eq 0 ]; then
+              regression_pass=$((regression_pass + 1))
+            else
+              rc=1
+            fi
+          done
+          echo "REGRESSION_TEST_COUNT=$regression_count" > "$E/regression-summary.txt"
+          echo "REGRESSION_PASS_COUNT=$regression_pass" >> "$E/regression-summary.txt"
+          echo "REGRESSION_FAIL_COUNT=$((regression_count - regression_pass))" >> "$E/regression-summary.txt"
+
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
           echo "PROCESS_EXIT=$rc" > "$E/status.txt"
           exit "$rc"
