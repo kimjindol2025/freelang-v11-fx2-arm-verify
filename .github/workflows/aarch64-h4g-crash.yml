@@ -1,0 +1,111 @@
+name: FreeLang AArch64 H4G Stage1 Crash Capture
+
+on:
+  workflow_dispatch:
+
+jobs:
+  crash-capture:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install diagnostics
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc clang gdb binutils file libcurl4-openssl-dev libsqlite3-dev libssl-dev
+
+      - name: Build and capture Stage1 crash
+        shell: bash
+        run: |
+          set +e
+          E=evidence/h4g
+          D="$E/objects"
+          mkdir -p "$D"
+          rc=0
+          uname -a > "$E/environment.txt"
+          uname -m >> "$E/environment.txt"
+          gcc --version >> "$E/environment.txt" 2>&1
+          gdb --version >> "$E/environment.txt" 2>&1
+          git rev-parse HEAD > "$E/git-head.txt"
+          sha256sum target-gen1.c > "$E/source-sha256.txt"
+
+          [ "$(uname -m)" = aarch64 ] || rc=1
+          gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer \
+            -ffunction-sections -fdata-sections -I runtime \
+            -c target-gen1.c -o "$D/target-gen1.o" > "$E/compile.log" 2>&1 || rc=1
+
+          for src in core collection io math error process json gc aliases debug cgc-bridge; do
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer \
+              -ffunction-sections -fdata-sections -I runtime \
+              -c "runtime/$src.c" -o "$D/$src.o" >> "$E/compile.log" 2>&1 || rc=1
+          done
+
+          gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections \
+            -o "$E/stage1-debug" \
+            "$D/target-gen1.o" "$D/core.o" "$D/collection.o" "$D/io.o" \
+            "$D/math.o" "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" \
+            "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+            -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 \
+            > "$E/link.log" 2>&1 || rc=1
+
+          if [ -s "$E/stage1-debug" ]; then
+            file "$E/stage1-debug" > "$E/binary.txt"
+            sha256sum "$E/stage1-debug" >> "$E/binary.txt"
+          fi
+
+          ulimit -c unlimited
+          "$E/stage1-debug" self/cgc-main.fl "$E/generated.c" > "$E/run.log" 2>&1
+          run_rc=$?
+          echo "STAGE1_RUN_EXIT=$run_rc" >> "$E/run.log"
+          [ "$run_rc" -eq 0 ] || rc=1
+
+          gdb --batch \
+            -ex 'set pagination off' \
+            -ex run \
+            -ex 'info registers' \
+            -ex 'bt 40' \
+            -ex 'thread apply all bt 20' \
+            --args "$E/stage1-debug" self/cgc-main.fl "$E/gdb-generated.c" \
+            > "$E/gdb.log" 2>&1
+          gdb_rc=$?
+          echo "GDB_EXIT=$gdb_rc" >> "$E/gdb.log"
+
+          gcc -D_GNU_SOURCE -g -O0 -fsanitize=address,undefined \
+            -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+            -c target-gen1.c -o "$D/target-gen1-sanitize.o" > "$E/sanitize-build.log" 2>&1 || rc=1
+          for src in core collection io math error process json gc aliases debug cgc-bridge; do
+            gcc -D_GNU_SOURCE -g -O0 -fsanitize=address,undefined \
+              -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+              -c "runtime/$src.c" -o "$D/$src-sanitize.o" >> "$E/sanitize-build.log" 2>&1 || rc=1
+          done
+          gcc -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Wl,--gc-sections -o "$E/stage1-sanitize" \
+            "$D/target-gen1-sanitize.o" "$D/core-sanitize.o" "$D/collection-sanitize.o" \
+            "$D/io-sanitize.o" "$D/math-sanitize.o" "$D/error-sanitize.o" \
+            "$D/process-sanitize.o" "$D/json-sanitize.o" "$D/gc-sanitize.o" \
+            "$D/aliases-sanitize.o" "$D/debug-sanitize.o" "$D/cgc-bridge-sanitize.o" \
+            -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 \
+            >> "$E/sanitize-build.log" 2>&1 || rc=1
+
+          if [ -x "$E/stage1-sanitize" ]; then
+            ASAN_OPTIONS='detect_leaks=0:halt_on_error=1:abort_on_error=1' \
+            UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
+              "$E/stage1-sanitize" self/cgc-main.fl "$E/sanitize-generated.c" \
+              > "$E/asan-ubsan.log" 2>&1
+            san_rc=$?
+            echo "SANITIZER_EXIT=$san_rc" >> "$E/asan-ubsan.log"
+            [ "$san_rc" -eq 0 ] || rc=1
+          fi
+
+          find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+          echo "PROCESS_EXIT=$rc" > "$E/status.txt"
+          exit "$rc"
+
+      - name: Upload H4G evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-aarch64-h4g-crash-evidence
+          path: evidence/h4g
+          if-no-files-found: error
