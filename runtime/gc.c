@@ -28,6 +28,26 @@
 #include <stdio.h>
 #include <pthread.h>
 
+/* Live RC-object registry: validate opaque FLValue handles before touching
+ * object memory, so stale and double releases are harmless. */
+typedef struct FLHeapLive { FLObject *obj; struct FLHeapLive *next; } FLHeapLive;
+static FLHeapLive *g_heap_live = NULL;
+static pthread_mutex_t g_heap_live_lock = PTHREAD_MUTEX_INITIALIZER;
+static void heap_live_add(FLObject *obj) {
+    FLHeapLive *n = (FLHeapLive *)malloc(sizeof(*n)); if (!n) return; n->obj = obj;
+    pthread_mutex_lock(&g_heap_live_lock); n->next = g_heap_live; g_heap_live = n; pthread_mutex_unlock(&g_heap_live_lock);
+}
+static bool heap_live_has(FLObject *obj) {
+    bool found = false; pthread_mutex_lock(&g_heap_live_lock);
+    for (FLHeapLive *n = g_heap_live; n; n = n->next) if (n->obj == obj) { found = true; break; }
+    pthread_mutex_unlock(&g_heap_live_lock); return found;
+}
+static bool heap_live_remove(FLObject *obj) {
+    bool found = false; pthread_mutex_lock(&g_heap_live_lock); FLHeapLive **p = &g_heap_live;
+    while (*p) { if ((*p)->obj == obj) { FLHeapLive *d = *p; *p = d->next; free(d); found = true; break; } p = &(*p)->next; }
+    pthread_mutex_unlock(&g_heap_live_lock); return found;
+}
+
 /* ── Arena 구조 ────────────────────────────────────────
    단일 연결 리스트로 청크를 이어붙임
    청크 크기: 64KB (L2 캐시에 맞게)
@@ -222,6 +242,7 @@ FLValue fl_heap_copy(FLValue v) {
         if (!dst) return fl_nil();
         dst->base.type = FL_STRING;
         dst->base.rc   = 1;
+        heap_live_add(&dst->base);
         dst->len = src->len;
         memcpy(dst->data, src->data, src->len + 1);
         FLValue r; r.tag = FL_STRING; r.obj = (FLObject*)dst;
@@ -234,6 +255,7 @@ FLValue fl_heap_copy(FLValue v) {
         if (!dst) return fl_nil();
         dst->base.type = FL_VECTOR;
         dst->base.rc   = 1;
+        heap_live_add(&dst->base);
         dst->len = src->len;
         dst->cap = src->len;  /* 딱 맞게 */
         dst->data = src->len > 0
@@ -251,6 +273,7 @@ FLValue fl_heap_copy(FLValue v) {
         if (!dst) return fl_nil();
         dst->base.type = FL_MAP;
         dst->base.rc   = 1;
+        heap_live_add(&dst->base);
         dst->len = src->len;
         dst->cap = src->len;
         dst->entries = src->len > 0
@@ -275,6 +298,7 @@ FLValue fl_heap_copy(FLValue v) {
 /* RC++ (heap 객체에 대한 추가 참조) */
 void fl_heap_retain(FLValue v) {
     if (v.tag < FL_STRING || !v.obj) return;
+    if (!heap_live_has(v.obj)) return;
     if (v.obj->rc == 0 || v.obj->rc == 0xFF) return;
     v.obj->rc++;
 }
@@ -282,10 +306,12 @@ void fl_heap_retain(FLValue v) {
 /* RC-- → 0이면 재귀 해제 */
 void fl_heap_release(FLValue v) {
     if (v.tag < FL_STRING || !v.obj) return;
+    if (!heap_live_has(v.obj)) return;
     if (v.obj->rc == 0 || v.obj->rc == 0xFF) return;
     if (--v.obj->rc > 0) return;
 
     /* RC = 0 → 해제 */
+    if (!heap_live_remove(v.obj)) return;
     switch (v.tag) {
     case FL_STRING:
         free(v.obj);
