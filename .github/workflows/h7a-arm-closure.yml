@@ -1,0 +1,56 @@
+name: FreeLang H7-A ARM Native Closure Restore
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - verify/runtime-recovery-h4g
+
+jobs:
+  arm-stage1-closure:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc binutils file libsqlite3-dev libssl-dev libcurl4-openssl-dev
+      - name: Build Stage1 with H4G closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          E=evidence/h7a
+          D="$E/objects"
+          mkdir -p "$D"
+          uname -a > "$E/environment.txt"
+          uname -m >> "$E/environment.txt"
+          git rev-parse HEAD > "$E/git-head.txt"
+          sha256sum target-gen1.c self/cgc-main.fl scripts/build-cgc-native.sh > "$E/source-sha256.txt"
+          test "$(uname -m)" = aarch64
+          printf '%s\n' core collection io math error process json gc aliases debug cgc-bridge > "$E/runtime-closure.txt"
+          for src in core collection io math error process json gc aliases debug cgc-bridge; do
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+              -c "runtime/$src.c" -o "$D/$src.o" >> "$E/stage1-build.log" 2>&1
+          done
+          gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+            -c target-gen1.c -o "$D/target-gen1.o" >> "$E/stage1-build.log" 2>&1
+          gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$E/stage1-bin" \
+            "$D/target-gen1.o" "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" \
+            "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+            -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 >> "$E/stage1-build.log" 2>&1
+          test -s "$E/stage1-bin"
+          file "$E/stage1-bin" | tee "$E/stage1-binary.txt"
+          sha256sum "$E/stage1-bin" | tee -a "$E/stage1-binary.txt"
+          file "$E/stage1-bin" | grep -Eiq 'aarch64|arm64'
+          "$E/stage1-bin" self/cgc-main.fl "$E/generated.c" > "$E/stage1-run.log" 2>&1
+          echo "STAGE1_RUN_EXIT=0" >> "$E/stage1-run.log"
+          test -s "$E/generated.c"
+          sha256sum "$E/generated.c" > "$E/generated-c.sha256"
+          find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+      - name: Upload H7-A evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-h7a-arm-closure-evidence
+          path: evidence/h7a
+          if-no-files-found: error
