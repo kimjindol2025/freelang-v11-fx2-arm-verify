@@ -9,7 +9,9 @@ on:
 jobs:
   bootstrap-parity:
     strategy:
-      fail-fast: true
+      # ARM must complete independently: x86 is a downstream parity signal and
+      # must not cancel the primary ARM fixed-point/reproducibility gate.
+      fail-fast: false
       matrix:
         include:
           - name: arm
