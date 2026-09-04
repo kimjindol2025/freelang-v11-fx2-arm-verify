@@ -36,12 +36,12 @@ jobs:
           gcc --version | head -n 1 >> "$E/environment.txt"
           ld --version | head -n 1 >> "$E/environment.txt"
           git rev-parse HEAD > "$E/git-head.txt"
-          gcc --help=common | grep -E "ffile-prefix-map|fdebug-prefix-map|fmacro-prefix-map" > "$E/toolchain-path-map-support.txt"
-          test "$(wc -l < "$E/toolchain-path-map-support.txt")" -ge 3
+          gcc --help=common | grep -F "ffile-prefix-map" > "$E/toolchain-path-map-support.txt"
+          test "$(wc -l < "$E/toolchain-path-map-support.txt")" -ge 1
           {
-            echo "PREFIX_MAP_POLICY=build-A_and_build-B_to_canonical_via_ffile_prefix_map_fdebug_prefix_map_fmacro_prefix_map"
+            echo "PREFIX_MAP_POLICY=build-A_and_build-B_to_canonical_via_ffile_prefix_map"
             echo "BUILD_ID_POLICY=DEFAULT_GNU_LINKER_BUILD_ID"
-            echo "COMPILE_FLAGS=-ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical"
+            echo "COMPILE_FLAGS=-ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical"
             echo "LINK_FLAGS=-Wl,--gc-sections"
             echo "RUNTIME_CLOSURE=core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
             echo "OBJECT_ORDER=generated_compiler_then_core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
@@ -54,12 +54,12 @@ jobs:
           modules="core collection io math error process json gc aliases debug cgc-bridge"
           printf '%s\n' $modules > "$E/runtime-closure.txt"
           for src in $modules; do
-            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical -I runtime \
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -I runtime \
               -c "runtime/$src.c" -o "$D/$src.o" >> "$E/build.log" 2>&1
           done
           build_native() {
             local input="$1" output="$2" log="$3"
-            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical -I runtime \
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -I runtime \
               -c "$input" -o "$D/$(basename "$output").o" >> "$log" 2>&1
             gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$output" \
               "$D/$(basename "$output").o" \
