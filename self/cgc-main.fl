@@ -1264,10 +1264,12 @@
 (defn cgc-defn [$args]
   (let [[$depth @cgc-defn-depth-atom]
         [$saved-params @outer-params-atom]]
+    (fl_heap_retain $saved-params)
     (reset! cgc-defn-depth-atom (+ @cgc-defn-depth-atom 1))
     (let [[$result (cgc-defn-impl $args)]]
       (reset! cgc-defn-depth-atom (- @cgc-defn-depth-atom 1))
       (reset! outer-params-atom $saved-params)
+      (fl_heap_release $saved-params)
       (if (> $depth 0)
         (let [[$name (c-name (cgc-extract-name (get $args 0)))]
               [$param-items (get-block-items (get $args 1))]
