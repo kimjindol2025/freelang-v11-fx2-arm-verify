@@ -1,0 +1,2 @@
+(defn map [$value] $value)
+(println (map 11))

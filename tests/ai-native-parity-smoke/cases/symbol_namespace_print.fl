@@ -1,0 +1,2 @@
+(defn print [$value] $value)
+(println (print 7))

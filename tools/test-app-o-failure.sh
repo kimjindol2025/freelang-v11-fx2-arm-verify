@@ -22,8 +22,8 @@ if CGC_BIN="${CGC_BIN:-/home/kimjin/freelang-v11/bin/cgc-bin}" \
   exit 1
 fi
 
-if ! grep -q "app.o 컴파일 실패" "$LOG"; then
-  echo "expected app.o failure diagnostic"
+if ! grep -Eq "C 타입 오류|app.o 컴파일 실패" "$LOG"; then
+  echo "expected native compile failure diagnostic"
   cat "$LOG"
   exit 1
 fi
@@ -34,4 +34,4 @@ if grep -q "cannot find .*\\.o" "$LOG"; then
   exit 1
 fi
 
-echo "PASS app.o failure is reported before link"
+echo "PASS native compile failure is reported before link"

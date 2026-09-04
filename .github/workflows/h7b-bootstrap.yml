@@ -1,4 +1,4 @@
-name: FreeLang H7-E Bootstrap Stability and Reproducibility
+name: FreeLang H7-F Native Symbol Namespace
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 jobs:
   bootstrap-parity:
     strategy:
-      # H7-E is intentionally isolated to the primary AArch64 deterministic-build gate;
+      # H7-F is intentionally isolated to the primary AArch64 deterministic-build gate;
       # must not cancel the primary ARM fixed-point/reproducibility gate.
       fail-fast: false
       matrix:
@@ -31,9 +31,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          E="evidence/h7e/${{ matrix.name }}"
+          E="evidence/h7f/${{ matrix.name }}"
           D="$E/objects"
-          mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results"
+          mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results" "$E/collision-generated"
           uname -a > "$E/environment.txt"
           uname -m >> "$E/environment.txt"
           gcc --version | head -n 1 >> "$E/environment.txt"
@@ -60,6 +60,9 @@ jobs:
             gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -I runtime \
               -c "runtime/$src.c" -o "$D/$src.o" >> "$E/build.log" 2>&1
           done
+          nm -g --defined-only "$D"/*.o | awk '{print $3}' | sed '/^$/d' | sort -u > "$E/runtime-exported-symbols.txt"
+          RUNTIME_GLOBAL_SYMBOL_COUNT=$(wc -l < "$E/runtime-exported-symbols.txt")
+          grep -Fx "rest" "$E/runtime-exported-symbols.txt" > "$E/runtime-collision-rest.txt"
           build_native() {
             local input="$1" output="$2" log="$3"
             gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -I runtime \
@@ -253,10 +256,18 @@ jobs:
             echo "ARM_C_FIXEDPOINT=PASS"
             echo "ARM_GENERATED_C_REPRODUCIBLE=PASS"
             echo "CANONICAL_ARM_BUILD_CONTRACT=$CANONICAL_CONTRACT"
-          } > "$E/h7e-classification.status"
+          } > "$E/h7f-classification.status"
           sha256sum "$A" "$B" > "$E/binary-reproducibility.sha256"
-          cat "$E/h7e-classification.status"
+          cat "$E/h7f-classification.status"
           if test "$REPRO" = FAIL || test "$CANONICAL_CONTRACT" = FAIL; then exit 1; fi
+          collision_names="rest print map filter alloc error"
+          for collision_name in $collision_names; do
+            stage2/cgc-bin "tests/ai-native-parity-smoke/cases/symbol_namespace_$collision_name.fl" "$E/collision-generated/$collision_name.c"
+            grep -q "FLValue fl_user_$collision_name" "$E/collision-generated/$collision_name.c"
+          done
+          stage2/cgc-bin tests/ai-native-parity-smoke/cases/symbol_namespace_global.fl "$E/collision-generated/global.c"
+          grep -q "static FLValue fl_user_rest" "$E/collision-generated/global.c"
+          grep -q "fl_user_rest(fl_int(5))" "$E/collision-generated/rest.c"
           sha256sum build-A/cgc-bin build-B/cgc-bin > "$E/binary-reproducibility.sha256"
           find tests/ai-native-parity-smoke/cases -maxdepth 1 -type f -name "*.fl" -printf "%f\n" | sed "s/[.]fl$//" | sort > "$E/parity-manifest.txt"
           pass=0
@@ -282,6 +293,21 @@ jobs:
           grep -q "UBSAN=PASS" "$E/asan.log"
           grep -q "LEAK=PASS" "$E/asan.log"
           {
+            echo "H7F_COMMIT=$(git rev-parse HEAD)"
+            echo "USER_SYMBOL_EMISSION_POLICY=deterministic_fl_user_prefix_for_defn_define_and_func_blocks"
+            echo "RUNTIME_SYMBOL_POLICY=existing_runtime_C_ABI_unchanged"
+            echo "GENERATED_INTERNAL_SYMBOL_POLICY=existing___fl_internal_prefix_unchanged"
+            echo "RUNTIME_GLOBAL_SYMBOL_COUNT=$RUNTIME_GLOBAL_SYMBOL_COUNT"
+            echo "RUNTIME_EXPORTED_SYMBOLS_ARTIFACT=runtime-exported-symbols.txt"
+            echo "COLLISION_TEST_COUNT=7"
+            echo "COLLISION_FOUND_COUNT=$(wc -l < "$E/runtime-collision-rest.txt")"
+            echo "COLLISION_NAMES=rest"
+            echo "SELECTED_NAMESPACE_POLICY=USER_MANGLING"
+            echo "POLICY_REASON=separates_all_user_globals_from_runtime_ABI_without_runtime_rename"
+            echo "REST_USER_SYMBOL_COLLISION=PASS"
+            echo "NATIVE_SYMBOL_NAMESPACE_GATE=PASS"
+          } > "$E/h7f-namespace.status"
+          {
             echo "X86_PARITY_INPUTS_READY=PASS"
             echo "REGRESSION=PASS"
             echo "H5_H6_COMPILER_RUNTIME_REGRESSION=PASS"
@@ -289,12 +315,12 @@ jobs:
             echo "UBSAN=PASS"
             echo "LEAK=PASS"
             echo "LEAK_BYTES=0"
-          } > "$E/h7e-downstream.status"
+          } > "$E/h7f-downstream.status"
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-      - name: Upload H7-E evidence
+      - name: Upload H7-F evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: freelang-h7e-${{ matrix.name }}-evidence
-          path: evidence/h7e/${{ matrix.name }}
+          name: freelang-h7f-${{ matrix.name }}-evidence
+          path: evidence/h7f/${{ matrix.name }}
           if-no-files-found: error

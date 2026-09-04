@@ -1,0 +1,2 @@
+(defn error [$value] $value)
+(println (error 19))

@@ -639,6 +639,9 @@
 (define wrapper-defs-atom  (atom []))
 ;; S24: define 전역 선언 목록 ("static FLValue name;")
 (define global-decls-atom  (atom []))
+;; H7-F: FreeLang user globals occupy their own C namespace.  Runtime ABI
+;; symbols and compiler internals must never make a legal user name reserved.
+(define known-user-globals-atom (atom []))
 
 ;; bug4: nested defn hoisting
 (define cgc-defn-depth-atom   (atom 0))
@@ -684,6 +687,19 @@
                 "!" "_b")]]
     (if (c-reserved? $raw) (str "fl_" $raw) $raw)))
 
+(defn user-c-name [$n]
+  ;; Keep the source-to-C spelling deterministic, but reserve fl_user_ for
+  ;; FreeLang-defined global functions and variables only.
+  (str "fl_user_" (c-name $n)))
+
+(defn cgc-user-defn? [$n]
+  (includes-item @known-defns-atom (user-c-name $n)))
+
+(defn cgc-language-special-form? [$op]
+  ;; These are syntax, rather than runtime ABI names, and remain non-shadowable.
+  (includes-item ["if" "cond" "do" "let" "defn" "define" "set!"
+                  "while" "loop" "recur" "fn" "and" "or"] $op))
+
 ;; ── 메인 dispatch ──
 
 (defn cgc [$n]
@@ -693,16 +709,19 @@
     [(= (get $n :kind) "variable")
       (let [[$name (get $n :name)]
             [$cn   (c-name $name)]
+            [$user-cn (user-c-name $name)]
             [$line (get $n :line)]]
-        (if (includes-item @known-defns-atom $cn)
-          (str "fl_fn_new(__fl_wrap_" $cn ", 0, NULL)")
-          ;; 알려진 함수/변수가 아니면 경고 출력 (컴파일 시점)
-          (if (not (includes-item @known-fncall-targets-atom $cn))
-            (do
-              (println (str "[FL Warn] 정의되지 않은 이름: " $name
-                            (if (null? $line) "" (str " (line " $line ")"))))
-              $cn)
-            $cn)))]
+        (if (includes-item @known-defns-atom $user-cn)
+          (str "fl_fn_new(__fl_wrap_" $user-cn ", 0, NULL)")
+          (if (includes-item @known-user-globals-atom $user-cn)
+            $user-cn
+            ;; 알려진 함수/변수가 아니면 경고 출력 (컴파일 시점)
+            (if (not (includes-item @known-fncall-targets-atom $cn))
+              (do
+                (println (str "[FL Warn] 정의되지 않은 이름: " $name
+                              (if (null? $line) "" (str " (line " $line ")"))))
+                $cn)
+              $cn))))]
     [(= (get $n :kind) "keyword")   (str "fl_str_val(\"" (c-esc (get $n :name)) "\")")]
     [(= (get $n :kind) "sexpr")     (cgc-sexpr $n)]
     [(= (get $n :kind) "block")     (cgc-block $n)]
@@ -725,10 +744,13 @@
                         [(= $v "true")  "fl_bool(true)"]
                         [(= $v "false") "fl_bool(false)"]
                         [(or (= $v "nil") (= $v "null")) "fl_nil()"]
-                        [true (let [[$cn (c-name $v)]]
-                                (if (includes-item @known-defns-atom $cn)
-                                  (str "fl_fn_new(__fl_wrap_" $cn ", 0, NULL)")
-                                  $cn))])]
+                        [true (let [[$cn (c-name $v)]
+                                    [$user-cn (user-c-name $v)]]
+                                (if (includes-item @known-defns-atom $user-cn)
+                                  (str "fl_fn_new(__fl_wrap_" $user-cn ", 0, NULL)")
+                                  (if (includes-item @known-user-globals-atom $user-cn)
+                                    $user-cn
+                                    $cn)))])]
     [true
      (do (println (str "[CGC-ERR] unsupported literal type=" (get $n :type) " line=" (get $n :line)))
          "fl_nil()")])))
@@ -746,7 +768,7 @@
          "fl_nil()")])))
 
 (defn cgc-func-block [$n]
-  (let [[$name (c-name (get $n :name))]
+  (let [[$name (user-c-name (get $n :name))]
       [$f (get $n :fields)]
       [$params-block (get $f :params)]
       [$body-node (get $f :body)]
@@ -789,6 +811,8 @@
     (cgc-fncall (cgc $op) $args))))
 
 (defn cgc-dispatch [$op $args]
+  (if (and (cgc-user-defn? $op) (not (cgc-language-special-form? $op)))
+    (str (user-c-name $op) "(" (cgc-args $args) ")")
   (cond
   [(= $op "if")     (cgc-if $args)]
   [(= $op "cond")   (cgc-cond $args)]
@@ -1030,7 +1054,7 @@
   [(= $op "auth-jwt-decode")     (str "fl_jwt_verify(" (cgc (get $args 0)) ", fl_str_val(\"\"))")]
   [(= $op "auth-hash-password")  (str "fl_hash_password(" (cgc (get $args 0)) ")")]
   [(= $op "auth-verify-password")(str "fl_verify_password(" (cgc (get $args 0)) ", " (cgc (get $args 1)) ")")]
-  [true             (cgc-dispatch-fallback $op $args)]))
+  [true             (cgc-dispatch-fallback $op $args)])))
 
 (defn cgc-swap! [$args]
   (let [[$atom-c  (cgc (get $args 0))]
@@ -1056,10 +1080,15 @@
     [(str-starts-with $op "$")
      (cgc-fncall (c-name (substring $op 1 (length $op))) $args)]
     [true
-     (let [[$cn (c-name $op)]]
-       (if (includes-item @known-fncall-targets-atom $cn)
-         (cgc-fncall $cn $args)
-         (str $cn "(" (cgc-args $args) ")")))]))
+     (let [[$cn (c-name $op)]
+           [$user-cn (user-c-name $op)]]
+       (if (cgc-user-defn? $op)
+         (str $user-cn "(" (cgc-args $args) ")")
+         (if (includes-item @known-user-globals-atom $user-cn)
+           (cgc-fncall $user-cn $args)
+           (if (includes-item @known-fncall-targets-atom $cn)
+             (cgc-fncall $cn $args)
+             (str $cn "(" (cgc-args $args) ")")))))]))
 
 ;; ── S19/S20: fn lambda → static FLClosure 추출 (capture 지원) ──
 
@@ -1246,7 +1275,7 @@
 ;; ── defn (최상위) ──
 
 (defn cgc-defn-impl [$args]
-  (let [[$name (c-name (cgc-extract-name (get $args 0)))]
+  (let [[$name (user-c-name (cgc-extract-name (get $args 0)))]
         [$param-items (get-block-items (get $args 1))]
         [$ps (cgc-params $param-items)]
         [$pnames (cgc-fn-param-names $param-items 0 [])]]
@@ -1273,7 +1302,7 @@
       (reset! outer-params-atom $saved-params)
       (fl_heap_release $saved-params)
       (if (> $depth 0)
-        (let [[$name (c-name (cgc-extract-name (get $args 0)))]
+        (let [[$name (user-c-name (cgc-extract-name (get $args 0)))]
               [$param-items (get-block-items (get $args 1))]
               [$ps (cgc-params $param-items)]]
           (swap! cgc-hoisted-fns-atom push $result)
@@ -1288,9 +1317,9 @@
 ;; ── define (전역 변수) ──
 
 (defn cgc-define [$args]
-  (let [[$name (c-name (cgc-extract-name (get $args 0)))]
+  (let [[$name (user-c-name (cgc-extract-name (get $args 0)))]
         [$val (cgc (get $args 1))]]
-    (swap! known-fncall-targets-atom push $name)
+    (swap! known-user-globals-atom push $name)
     (swap! global-decls-atom push (str "static FLValue " $name ";"))
     (str $name " = " $val ";")))
 
@@ -1356,7 +1385,7 @@
     (let [[$n (get $_nodes $i)]]
     (recur (+ $i 1)
       (if (and (= (get $n :kind) "sexpr") (= (get $n :op) "defn"))
-        (let [[$name (c-name (cgc-extract-name (get (get $n :args) 0)))]
+        (let [[$name (user-c-name (cgc-extract-name (get (get $n :args) 0)))]
               [$ps (cgc-params (get-block-items (get (get $n :args) 1)))]]
           (swap! known-defns-atom push $name)
           (str $acc
