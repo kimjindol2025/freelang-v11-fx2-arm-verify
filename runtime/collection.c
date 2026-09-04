@@ -211,15 +211,86 @@ FLValue fl_map_set(FLValue map, FLValue key, FLValue val) {
 }
 
 /* ── S7: Closure ──
-   클로저는 전역 핸들러로 등록될 수 있어 요청 수명보다 길게 생존.
-   반드시 malloc 사용 (Arena 비사용).
-*/
+ *
+ * fl_fn_new is the escaping-closure ABI boundary. An arena value may be
+ * captured by a callback retained past the current request, so env[] must
+ * never retain an arena pointer. Aggregate captures are recursively promoted
+ * into the runtime process-lifetime registry. Runtime shutdown releases it.
+ *
+ * A nested FL_FN was itself built through fl_fn_new, and is therefore already
+ * process-lifetime owned. It may be shared directly rather than copied.
+ */
+static FLValue fl_capture_promote(FLValue v) {
+    switch (v.tag) {
+    case FL_INT:
+    case FL_FLOAT:
+    case FL_BOOL:
+    case FL_NIL:
+        return v;
+
+    case FL_STRING: {
+        if (!v.obj) return fl_nil();
+        FLString* src = (FLString*)v.obj;
+        FLString* dst = fl_perm_alloc(sizeof(FLString) + src->len + 1);
+        if (!dst) return fl_nil();
+        dst->base.type = FL_STRING;
+        dst->base.rc = 0xFF;
+        dst->len = src->len;
+        memcpy(dst->data, src->data, src->len + 1);
+        FLValue result; result.tag = FL_STRING; result.obj = (FLObject*)dst;
+        return result;
+    }
+
+    case FL_VECTOR: {
+        if (!v.obj) return fl_nil();
+        FLVector* src = (FLVector*)v.obj;
+        FLVector* dst = fl_perm_alloc(sizeof(FLVector));
+        if (!dst) return fl_nil();
+        dst->base.type = FL_VECTOR;
+        dst->base.rc = 0xFF;
+        dst->len = src->len;
+        dst->cap = src->len;
+        dst->data = src->len ? fl_perm_alloc(sizeof(FLValue) * src->len) : NULL;
+        if (src->len && !dst->data) return fl_nil();
+        for (uint32_t i = 0; i < src->len; i++)
+            dst->data[i] = fl_capture_promote(src->data[i]);
+        FLValue result; result.tag = FL_VECTOR; result.obj = (FLObject*)dst;
+        return result;
+    }
+
+    case FL_MAP: {
+        if (!v.obj) return fl_nil();
+        FLMap* src = (FLMap*)v.obj;
+        FLMap* dst = fl_perm_alloc(sizeof(FLMap));
+        if (!dst) return fl_nil();
+        dst->base.type = FL_MAP;
+        dst->base.rc = 0xFF;
+        dst->len = src->len;
+        dst->cap = src->len;
+        dst->entries = src->len ? fl_perm_alloc(sizeof(FLMapEntry) * src->len) : NULL;
+        if (src->len && !dst->entries) return fl_nil();
+        for (uint32_t i = 0; i < src->len; i++) {
+            dst->entries[i].key = fl_capture_promote(src->entries[i].key);
+            dst->entries[i].val = fl_capture_promote(src->entries[i].val);
+        }
+        FLValue result; result.tag = FL_MAP; result.obj = (FLObject*)dst;
+        return result;
+    }
+
+    case FL_FN:
+        return v;
+    }
+    return fl_nil();
+}
+
 FLValue fl_fn_new(FLValue (*call)(FLClosure*, int, FLValue*),
                   uint32_t nenv, FLValue* env) {
-    FLClosure* cl = malloc(sizeof(FLClosure) + sizeof(FLValue) * nenv);
-    cl->base.type = FL_FN; cl->base.rc = 1;
+    FLClosure* cl = fl_perm_alloc(sizeof(FLClosure) + sizeof(FLValue) * nenv);
+    if (!cl) return fl_nil();
+    cl->base.type = FL_FN; cl->base.rc = 0xFF;
     cl->call = call; cl->nenv = nenv; cl->hot_count = 0;
-    for (uint32_t i = 0; i < nenv; i++) cl->env[i] = env[i];
+    for (uint32_t i = 0; i < nenv; i++)
+        cl->env[i] = fl_capture_promote(env[i]);
     FLValue r; r.tag = FL_FN; r.obj = (FLObject*)cl; return r;
 }
 

@@ -8,6 +8,19 @@
 #define FAIL(name) do { printf("FAIL %s\n", name); exit(1); } while(0)
 #define CHECK(cond, name) do { if (!(cond)) FAIL(name); else PASS(name); } while(0)
 
+/* Native stand-ins for generated FreeLang closures crossing the C ABI. */
+static FLValue return_capture(FLClosure* self, int argc, FLValue* argv) {
+    (void)argc;
+    (void)argv;
+    return self->env[0];
+}
+
+static FLValue invoke_captured_callback(FLClosure* self, int argc, FLValue* argv) {
+    (void)argc;
+    (void)argv;
+    return fl_fn_call(self->env[0], 0, NULL);
+}
+
 int main(void) {
     /* ── 값 생성 ── */
     FLValue ni = fl_nil();
@@ -158,11 +171,56 @@ int main(void) {
     CHECK(fl_map_len(mu).i == 2, "fl_map_set upsert len unchanged");
     CHECK(fl_map_get(mu, fl_str_val("a")).i == 99, "fl_map_set upsert val");
 
+    /* Escaping closure capture ownership: source values are arena-borrowed.
+     * The next request may reuse their arena, but callbacks must remain stable. */
+    const char capture_string_bytes[] = { 'A', 0, 'B' };
+    const char replacement_string_bytes[] = { 'X', 0, 'Y' };
+    fl_arena_begin();
+    FLValue capture_string = fl_str_val_n(capture_string_bytes, 3);
+    FLValue capture_vector_items[2] = { fl_str_val("vector"), fl_int(7) };
+    FLValue capture_vector = fl_vec_from(capture_vector_items, 2);
+    FLValue capture_map_items[2] = { fl_str_val("key"), fl_str_val("map") };
+    FLValue capture_map = fl_map_from_pairs(capture_map_items, 1);
+    FLValue string_closure = fl_fn_new(return_capture, 1, &capture_string);
+    FLValue vector_closure = fl_fn_new(return_capture, 1, &capture_vector);
+    FLValue map_closure = fl_fn_new(return_capture, 1, &capture_map);
+    FLValue nested_inner = fl_fn_new(return_capture, 1, &capture_string);
+    FLValue nested_outer = fl_fn_new(invoke_captured_callback, 1, &nested_inner);
+    fl_arena_end();
+
+    fl_arena_begin();
+    (void)fl_str_val_n(replacement_string_bytes, 3);
+    FLValue replacement_items[2] = { fl_str_val("changed"), fl_int(99) };
+    (void)fl_vec_from(replacement_items, 2);
+    FLValue replacement_map_items[2] = { fl_str_val("key"), fl_str_val("changed") };
+    (void)fl_map_from_pairs(replacement_map_items, 1);
+
+    FLValue returned_string = fl_fn_call(string_closure, 0, NULL);
+    CHECK(returned_string.tag == FL_STRING && ((FLString*)returned_string.obj)->len == 3 &&
+          memcmp(((FLString*)returned_string.obj)->data, capture_string_bytes, 3) == 0,
+          "closure capture string survives arena reuse");
+    FLValue returned_vector = fl_fn_call(vector_closure, 0, NULL);
+    CHECK(returned_vector.tag == FL_VECTOR && fl_vec_len(returned_vector).i == 2 &&
+          fl_vec_get(returned_vector, fl_int(1)).i == 7,
+          "closure capture vector survives arena reuse");
+    FLValue returned_map = fl_fn_call(map_closure, 0, NULL);
+    FLValue returned_map_value = fl_map_get(returned_map, fl_str_val("key"));
+    CHECK(returned_map.tag == FL_MAP && returned_map_value.tag == FL_STRING &&
+          ((FLString*)returned_map_value.obj)->len == 3 &&
+          memcmp(((FLString*)returned_map_value.obj)->data, "map", 3) == 0,
+          "closure capture map survives arena reuse");
+    FLValue returned_nested = fl_fn_call(nested_outer, 0, NULL);
+    CHECK(returned_nested.tag == FL_STRING && ((FLString*)returned_nested.obj)->len == 3 &&
+          memcmp(((FLString*)returned_nested.obj)->data, capture_string_bytes, 3) == 0,
+          "nested closure capture survives arena reuse");
+    fl_arena_end();
+
     /* ── 수치 출력 ── */
     printf("fl_println: ");
     fl_println(fl_int(42));
     printf("(above should be 42)\n");
 
     printf("\nAll tests PASS\n");
+    fl_runtime_shutdown();
     return 0;
 }
