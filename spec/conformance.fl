@@ -42,6 +42,7 @@
 
 ;; strings
 (expect "str concat" (str "fx" 2) "fx2")
+(expect "str-indent" (str-indent "x" 2) "  x")
 (expect "str-count" (str-count "hello world hello" "hello") 2)
 (expect "str-truncate" (str-truncate "hello world" 5 "...") "he...")
 (expect "str-rpad" (str-rpad "hi" 4 ".") "hi..")

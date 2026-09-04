@@ -643,6 +643,20 @@
 ;; symbols and compiler internals must never make a legal user name reserved.
 (define known-user-globals-atom (atom []))
 
+;; Runtime values created by fx-builtin-shim.c are FLValue closures, not C
+;; functions. Calls must go through fl_fn_call; keep this catalog aligned with
+;; that shim rather than emitting a direct C call.
+(define runtime-value-callable-targets
+  ["sqlite_open" "sqlite_query" "sqlite_exec" "sqlite_one"
+   "sqlite_query_p" "sqlite_exec_p" "sqlite_one_p" "sqlite_close"
+   "server_req_body" "math_clamp" "str_lines" "math_round_n"
+   "math_sign" "str_indent" "str_truncate" "math_lerp" "str_count"
+   "path_dirname" "time_now_ms" "time_elapsed" "path_basename"
+   "str_rpad" "throw"])
+
+(defn cgc-runtime-value-callable? [$candidate]
+  (includes-item runtime-value-callable-targets $candidate))
+
 ;; bug4: nested defn hoisting
 (define cgc-defn-depth-atom   (atom 0))
 (define cgc-hoisted-fns-atom  (atom []))
@@ -716,7 +730,8 @@
           (if (includes-item @known-user-globals-atom $user-cn)
             $user-cn
             ;; 알려진 함수/변수가 아니면 경고 출력 (컴파일 시점)
-            (if (not (includes-item @known-fncall-targets-atom $cn))
+            (if (and (not (includes-item @known-fncall-targets-atom $cn))
+                     (not (cgc-runtime-value-callable? $cn)))
               (do
                 (println (str "[FL Warn] 정의되지 않은 이름: " $name
                               (if (null? $line) "" (str " (line " $line ")"))))
@@ -839,6 +854,7 @@
   [(= $op "println") (str "fl_println(" (cgc-str-arg $args) ")")]
   [(= $op "print")   (str "fl_print(" (cgc-str-arg $args) ")")]
   [(= $op "str")    (cgc-str $args)]
+  [(= $op "apply")  (str "fl_apply(" (cgc (get $args 0)) ", " (cgc (get $args 1)) ")")]
   [(= $op "set!")   (cgc-set! $args)]
   [(= $op "while")  (cgc-while $args)]
   ;; S26: atom / deref / swap! / reset!
@@ -1086,7 +1102,8 @@
          (str $user-cn "(" (cgc-args $args) ")")
          (if (includes-item @known-user-globals-atom $user-cn)
            (cgc-fncall $user-cn $args)
-           (if (includes-item @known-fncall-targets-atom $cn)
+           (if (or (includes-item @known-fncall-targets-atom $cn)
+                   (cgc-runtime-value-callable? $cn))
              (cgc-fncall $cn $args)
              (str $cn "(" (cgc-args $args) ")")))))]))
 

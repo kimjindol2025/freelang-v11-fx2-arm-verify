@@ -664,10 +664,8 @@ extern FLValue server_req_body;
 /* throw: old cgc-bin generates fl_fn_call(throw,...) — shim maps to fl_throw() */
 /* In C (not C++), 'throw' is a valid identifier */
 extern FLValue throw;
-/* apply, max, str: cgc-bin generates fl_fn_call(...) for first-class usage */
-extern FLValue apply;
-extern FLValue max;
-extern FLValue str;
+/* apply is the direct fl_apply ABI; str is a compiler intrinsic.
+ * max has no runtime implementation and must not be declared as a closure. */
 
 /* fx 독립 언어 — 투명 alias 선언 */
 FLValue sqlite_open_v2(FLValue path);
