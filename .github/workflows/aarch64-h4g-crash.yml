@@ -76,7 +76,7 @@ jobs:
 
           if [ -s "$E/generated.c" ]; then
             gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections \
-              -o "$E/stage2-debug" "$E/generated.c" \
+              -I runtime -o "$E/stage2-debug" "$E/generated.c" \
               "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" \
               "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" \
               "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
@@ -92,25 +92,25 @@ jobs:
 
           gcc -D_GNU_SOURCE -g -O0 -fsanitize=address,undefined \
             -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
-            -c target-gen1.c -o "$D/target-gen1-sanitize.o" > "$E/sanitize-build.log" 2>&1 || rc=1
+            -c "$E/generated.c" -o "$D/generated-sanitize.o" > "$E/sanitize-build.log" 2>&1 || rc=1
           for src in core collection io math error process json gc aliases debug cgc-bridge; do
             gcc -D_GNU_SOURCE -g -O0 -fsanitize=address,undefined \
               -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
               -c "runtime/$src.c" -o "$D/$src-sanitize.o" >> "$E/sanitize-build.log" 2>&1 || rc=1
           done
           gcc -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer \
-            -Wl,--gc-sections -o "$E/stage1-sanitize" \
-            "$D/target-gen1-sanitize.o" "$D/core-sanitize.o" "$D/collection-sanitize.o" \
+            -Wl,--gc-sections -o "$E/stage2-sanitize" \
+            "$D/generated-sanitize.o" "$D/core-sanitize.o" "$D/collection-sanitize.o" \
             "$D/io-sanitize.o" "$D/math-sanitize.o" "$D/error-sanitize.o" \
             "$D/process-sanitize.o" "$D/json-sanitize.o" "$D/gc-sanitize.o" \
             "$D/aliases-sanitize.o" "$D/debug-sanitize.o" "$D/cgc-bridge-sanitize.o" \
             -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 \
             >> "$E/sanitize-build.log" 2>&1 || rc=1
 
-          if [ -x "$E/stage1-sanitize" ]; then
+          if [ -x "$E/stage2-sanitize" ]; then
             ASAN_OPTIONS='detect_leaks=0:halt_on_error=1:abort_on_error=1' \
             UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
-              "$E/stage1-sanitize" self/cgc-main.fl "$E/sanitize-generated.c" \
+              "$E/stage2-sanitize" self/cgc-main.fl "$E/sanitize-generated.c" \
               > "$E/asan-ubsan.log" 2>&1
             san_rc=$?
             echo "SANITIZER_EXIT=$san_rc" >> "$E/asan-ubsan.log"
