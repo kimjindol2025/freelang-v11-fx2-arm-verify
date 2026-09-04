@@ -1,4 +1,4 @@
-name: FreeLang H7-B Bootstrap Stability and Reproducibility
+name: FreeLang H7-C Bootstrap Stability and Reproducibility
 
 on:
   workflow_dispatch:
@@ -30,8 +30,8 @@ jobs:
       - name: Bootstrap, reproducibility, parity, and sanitizer gates
         shell: bash
         run: |
-          set -euo pipefail
-          E="evidence/h7b/${{ matrix.name }}"
+          set -euxo pipefail
+          E="evidence/h7c/${{ matrix.name }}"
           D="$E/objects"
           mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results"
           uname -a > "$E/environment.txt"
@@ -76,7 +76,150 @@ jobs:
           sha256sum build-A/gen.c build-B/gen.c > "$E/generated-reproducibility.sha256"
           build_native build-A/gen.c build-A/cgc-bin "$E/build-A-native.log"
           build_native build-B/gen.c build-B/cgc-bin "$E/build-B-native.log"
-          cmp build-A/cgc-bin build-B/cgc-bin
+          mkdir -p "$E/raw-elf" "$E/elf-analysis"
+          cp build-A/cgc-bin "$E/raw-elf/build-A-cgc-bin"
+          cp build-B/cgc-bin "$E/raw-elf/build-B-cgc-bin"
+          cp build-A/gen.c "$E/raw-elf/build-A-gen.c"
+          cp build-B/gen.c "$E/raw-elf/build-B-gen.c"
+          A="$E/raw-elf/build-A-cgc-bin"
+          B="$E/raw-elf/build-B-cgc-bin"
+          A_SHA=$(sha256sum "$A" | cut -d" " -f1)
+          B_SHA=$(sha256sum "$B" | cut -d" " -f1)
+          A_SIZE=$(stat -c %s "$A")
+          B_SIZE=$(stat -c %s "$B")
+          file "$A" > "$E/elf-analysis/build-A-file.txt"
+          file "$B" > "$E/elf-analysis/build-B-file.txt"
+          if grep -q "ARM aarch64" "$E/elf-analysis/build-A-file.txt"; then A_ARCH=AARCH64; else A_ARCH=UNEXPECTED; fi
+          if grep -q "ARM aarch64" "$E/elf-analysis/build-B-file.txt"; then B_ARCH=AARCH64; else B_ARCH=UNEXPECTED; fi
+          if cmp -l "$A" "$B" > "$E/elf-analysis/cmp-l.txt"; then
+            BYTE_COUNT=0
+            FIRST_OFFSET=NONE
+            FIRST_CONTEXT=NONE
+            FIRST_REGION=NONE
+          else
+            BYTE_COUNT=$(wc -l < "$E/elf-analysis/cmp-l.txt")
+            FIRST_LINE=$(head -n 1 "$E/elf-analysis/cmp-l.txt")
+            set -- $FIRST_LINE
+            FIRST_OFFSET=$1
+            START=$(( FIRST_OFFSET > 17 ? FIRST_OFFSET - 17 : 0 ))
+            od -An -tx1 -j "$START" -N 48 "$A" > "$E/elf-analysis/first-diff-A.hex"
+            od -An -tx1 -j "$START" -N 48 "$B" > "$E/elf-analysis/first-diff-B.hex"
+            FIRST_CONTEXT="offset=$FIRST_OFFSET; SEE_elf-analysis/first-diff-A.hex_and_build-B.hex"
+            FIRST_REGION=UNKNOWN
+            while read -r IDX SECTION SIZE VMA LMA FILEOFF ALIGN; do
+              case "$IDX" in *[!0-9]*|"") continue ;; esac
+              BEGIN=$((16#$FILEOFF))
+              LENGTH=$((16#$SIZE))
+              if (( FIRST_OFFSET >= BEGIN + 1 && FIRST_OFFSET <= BEGIN + LENGTH )); then FIRST_REGION=$SECTION; break; fi
+            done < <(objdump -h "$A" | tail -n +6)
+          fi
+          readelf -h "$A" > "$E/elf-analysis/build-A-header.txt"
+          readelf -h "$B" > "$E/elf-analysis/build-B-header.txt"
+          readelf -lW "$A" > "$E/elf-analysis/build-A-program-headers.txt"
+          readelf -lW "$B" > "$E/elf-analysis/build-B-program-headers.txt"
+          readelf -SW "$A" > "$E/elf-analysis/build-A-sections.txt"
+          readelf -SW "$B" > "$E/elf-analysis/build-B-sections.txt"
+          readelf -nW "$A" > "$E/elf-analysis/build-A-notes.txt"
+          readelf -nW "$B" > "$E/elf-analysis/build-B-notes.txt"
+          readelf -sW "$A" > "$E/elf-analysis/build-A-symbols.txt"
+          readelf -sW "$B" > "$E/elf-analysis/build-B-symbols.txt"
+          readelf -rW "$A" > "$E/elf-analysis/build-A-relocations.txt"
+          readelf -rW "$B" > "$E/elf-analysis/build-B-relocations.txt"
+          readelf --debug-dump=info "$A" > "$E/elf-analysis/build-A-debug-info.txt"
+          readelf --debug-dump=info "$B" > "$E/elf-analysis/build-B-debug-info.txt"
+          readelf -SW "$A" | grep -E "[.]debug" > "$E/elf-analysis/debug-sections.txt" || true
+          strings -a "$A" | grep -E "build-A|build-B|/home/runner/work|/tmp" > "$E/elf-analysis/build-A-paths.txt" || true
+          strings -a "$B" | grep -E "build-A|build-B|/home/runner/work|/tmp" > "$E/elf-analysis/build-B-paths.txt" || true
+          for SECTION in text rodata data; do
+            objcopy --dump-section ".$SECTION=$E/elf-analysis/build-A.$SECTION.bin" "$A"
+            objcopy --dump-section ".$SECTION=$E/elf-analysis/build-B.$SECTION.bin" "$B"
+          done
+          TEXT_A=$(sha256sum "$E/elf-analysis/build-A.text.bin" | cut -d" " -f1)
+          TEXT_B=$(sha256sum "$E/elf-analysis/build-B.text.bin" | cut -d" " -f1)
+          RODATA_A=$(sha256sum "$E/elf-analysis/build-A.rodata.bin" | cut -d" " -f1)
+          RODATA_B=$(sha256sum "$E/elf-analysis/build-B.rodata.bin" | cut -d" " -f1)
+          DATA_A=$(sha256sum "$E/elf-analysis/build-A.data.bin" | cut -d" " -f1)
+          DATA_B=$(sha256sum "$E/elf-analysis/build-B.data.bin" | cut -d" " -f1)
+          if cmp -s "$E/elf-analysis/build-A-header.txt" "$E/elf-analysis/build-B-header.txt"; then ELF_HEADER=PASS; else ELF_HEADER=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A-program-headers.txt" "$E/elf-analysis/build-B-program-headers.txt"; then PROGRAM_HEADERS=PASS; else PROGRAM_HEADERS=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A-sections.txt" "$E/elf-analysis/build-B-sections.txt"; then SECTION_TABLE=PASS; else SECTION_TABLE=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A.text.bin" "$E/elf-analysis/build-B.text.bin"; then TEXT=PASS; else TEXT=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A.rodata.bin" "$E/elf-analysis/build-B.rodata.bin"; then RODATA=PASS; else RODATA=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A.data.bin" "$E/elf-analysis/build-B.data.bin"; then DATA=PASS; else DATA=FAIL; fi
+          grep -E "[[:space:]][.]bss[[:space:]]" "$E/elf-analysis/build-A-sections.txt" > "$E/elf-analysis/build-A-bss.txt" || true
+          grep -E "[[:space:]][.]bss[[:space:]]" "$E/elf-analysis/build-B-sections.txt" > "$E/elf-analysis/build-B-bss.txt" || true
+          if cmp -s "$E/elf-analysis/build-A-bss.txt" "$E/elf-analysis/build-B-bss.txt"; then BSS=PASS; else BSS=FAIL; fi
+          BUILD_ID_A=$(grep -oE "[0-9a-f]{40}" "$E/elf-analysis/build-A-notes.txt" | head -n 1 || true)
+          BUILD_ID_B=$(grep -oE "[0-9a-f]{40}" "$E/elf-analysis/build-B-notes.txt" | head -n 1 || true)
+          if test "$BUILD_ID_A" = "$BUILD_ID_B"; then BUILD_ID=PASS; else BUILD_ID=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A-notes.txt" "$E/elf-analysis/build-B-notes.txt"; then NOTE=PASS; else NOTE=FAIL; fi
+          if cmp -s "$E/elf-analysis/build-A-symbols.txt" "$E/elf-analysis/build-B-symbols.txt"; then SYMBOLS=PASS; SYMBOL_CLASS=NONE; FIRST_SYMBOL=NONE; else SYMBOLS=FAIL; SYMBOL_CLASS=OTHER; diff -u "$E/elf-analysis/build-A-symbols.txt" "$E/elf-analysis/build-B-symbols.txt" > "$E/elf-analysis/symbol-diff.txt" || true; FIRST_SYMBOL=$(grep -E "^[+-][[:space:]]*[0-9]" "$E/elf-analysis/symbol-diff.txt" | head -n 1 || true); fi
+          if cmp -s "$E/elf-analysis/build-A-relocations.txt" "$E/elf-analysis/build-B-relocations.txt"; then RELOCATIONS=PASS; FIRST_RELOCATION=NONE; else RELOCATIONS=FAIL; diff -u "$E/elf-analysis/build-A-relocations.txt" "$E/elf-analysis/build-B-relocations.txt" > "$E/elf-analysis/relocation-diff.txt" || true; FIRST_RELOCATION=$(grep -E "^[+-]" "$E/elf-analysis/relocation-diff.txt" | head -n 1 || true); fi
+          if test -s "$E/elf-analysis/debug-sections.txt"; then DEBUG_PRESENT=YES; if cmp -s "$E/elf-analysis/build-A-debug-info.txt" "$E/elf-analysis/build-B-debug-info.txt"; then DEBUG=PASS; else DEBUG=FAIL; fi; if cmp -s "$E/elf-analysis/build-A-paths.txt" "$E/elf-analysis/build-B-paths.txt"; then PATHS=PASS; PATH_DIFF=NONE; else PATHS=FAIL; diff -u "$E/elf-analysis/build-A-paths.txt" "$E/elf-analysis/build-B-paths.txt" > "$E/elf-analysis/path-diff.txt" || true; PATH_DIFF=SEE_elf-analysis/path-diff.txt; fi; else DEBUG_PRESENT=NO; DEBUG=NOT_PRESENT; PATHS=NOT_PRESENT; PATH_DIFF=NOT_PRESENT; fi
+          objcopy --dump-section .comment="$E/elf-analysis/build-A.comment.bin" "$A"
+          objcopy --dump-section .comment="$E/elf-analysis/build-B.comment.bin" "$B"
+          if cmp -s "$E/elf-analysis/build-A.comment.bin" "$E/elf-analysis/build-B.comment.bin"; then COMMENT=PASS; else COMMENT=FAIL; fi
+          set +e
+          "$A" self/cgc-main.fl "$E/runtime-A.c" > "$E/runtime-A.stdout" 2> "$E/runtime-A.stderr"
+          A_EXIT=$?
+          "$B" self/cgc-main.fl "$E/runtime-B.c" > "$E/runtime-B.stdout" 2> "$E/runtime-B.stderr"
+          B_EXIT=$?
+          set -e
+          if test "$A_EXIT" -eq 0; then A_RUN=PASS; else A_RUN=FAIL; fi
+          if test "$B_EXIT" -eq 0; then B_RUN=PASS; else B_RUN=FAIL; fi
+          if test "$A_EXIT" -eq "$B_EXIT"; then EXIT_MATCH=PASS; else EXIT_MATCH=FAIL; fi
+          if cmp -s "$E/runtime-A.c" "$E/runtime-B.c" && cmp -s "$E/runtime-A.stdout" "$E/runtime-B.stdout" && cmp -s "$E/runtime-A.stderr" "$E/runtime-B.stderr"; then RUNTIME_MATCH=PASS; else RUNTIME_MATCH=FAIL; fi
+          if test "$TEXT" = FAIL || test "$RODATA" = FAIL; then DIFF_CLASS=CODE; elif test "$DATA" = FAIL; then DIFF_CLASS=DATA; elif test "$RELOCATIONS" = FAIL; then DIFF_CLASS=RELOCATION; elif test "$SYMBOLS" = FAIL; then DIFF_CLASS=SYMBOL_TABLE; elif test "$DEBUG" = FAIL || test "$PATHS" = FAIL; then DIFF_CLASS=NON_RUNTIME_ELF_METADATA; elif test "$BUILD_ID" = FAIL; then DIFF_CLASS=BUILD_ID_ONLY; else DIFF_CLASS=UNKNOWN; fi
+          if test "$A_SHA" = "$B_SHA"; then REPRO=PASS; else REPRO=FAIL; fi
+          {
+            echo "ARM_BINARY_A_SHA256=$A_SHA"
+            echo "ARM_BINARY_B_SHA256=$B_SHA"
+            echo "ARM_BINARY_A_SIZE=$A_SIZE"
+            echo "ARM_BINARY_B_SIZE=$B_SIZE"
+            echo "ARM_BINARY_A_ARCH=$A_ARCH"
+            echo "ARM_BINARY_B_ARCH=$B_ARCH"
+            echo "FIRST_BINARY_DIFF_OFFSET=$FIRST_OFFSET"
+            echo "FIRST_BINARY_DIFF_CONTEXT=$FIRST_CONTEXT"
+            echo "FIRST_DIFF_REGION=$FIRST_REGION"
+            echo "BINARY_DIFF_BYTE_COUNT=$BYTE_COUNT"
+            echo "ELF_HEADER_MATCH=$ELF_HEADER"
+            echo "PROGRAM_HEADERS_MATCH=$PROGRAM_HEADERS"
+            echo "SECTION_TABLE_MATCH=$SECTION_TABLE"
+            echo "TEXT_SECTION_MATCH=$TEXT"
+            echo "TEXT_A_SHA256=$TEXT_A"
+            echo "TEXT_B_SHA256=$TEXT_B"
+            echo "RODATA_SECTION_MATCH=$RODATA"
+            echo "RODATA_A_SHA256=$RODATA_A"
+            echo "RODATA_B_SHA256=$RODATA_B"
+            echo "DATA_SECTION_MATCH=$DATA"
+            echo "DATA_A_SHA256=$DATA_A"
+            echo "DATA_B_SHA256=$DATA_B"
+            echo "BSS_SECTION_MATCH=$BSS"
+            echo "BUILD_ID_A=$BUILD_ID_A"
+            echo "BUILD_ID_B=$BUILD_ID_B"
+            echo "BUILD_ID_MATCH=$BUILD_ID"
+            echo "NOTE_SECTION_MATCH=$NOTE"
+            echo "SYMBOL_TABLE_MATCH=$SYMBOLS"
+            echo "SYMBOL_DIFF_CLASS=$SYMBOL_CLASS"
+            echo "FIRST_SYMBOL_DIFF=$FIRST_SYMBOL"
+            echo "RELOCATION_MATCH=$RELOCATIONS"
+            echo "FIRST_RELOCATION_DIFF=$FIRST_RELOCATION"
+            echo "DEBUG_SECTIONS_PRESENT=$DEBUG_PRESENT"
+            echo "DEBUG_METADATA_MATCH=$DEBUG"
+            echo "PATH_METADATA_MATCH=$PATHS"
+            echo "PATH_METADATA_DIFFERENCE=$PATH_DIFF"
+            echo "OTHER_METADATA_DIFF=.comment=$COMMENT"
+            echo "BINARY_A_RUN=$A_RUN"
+            echo "BINARY_B_RUN=$B_RUN"
+            echo "BINARY_RUNTIME_OUTPUT_MATCH=$RUNTIME_MATCH"
+            echo "BINARY_EXIT_STATUS_MATCH=$EXIT_MATCH"
+            echo "BINARY_DIFF_CLASS=$DIFF_CLASS"
+            echo "ARM_BINARY_REPRODUCIBLE=$REPRO"
+          } > "$E/h7c-classification.status"
+          sha256sum "$A" "$B" > "$E/binary-reproducibility.sha256"
+          find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+          cat "$E/h7c-classification.status"
+          if test "$REPRO" = FAIL; then exit 1; fi
           sha256sum build-A/cgc-bin build-B/cgc-bin > "$E/binary-reproducibility.sha256"
           printf '%s\n' \
             append_basic append_nested bool filter function function_alias higher_order higher_order_custom_parameter \
@@ -98,10 +241,10 @@ jobs:
               ./tools/run-memory-ownership.sh > "$E/asan.log" 2> "$E/ubsan.log"
           fi
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-      - name: Upload H7-B evidence
+      - name: Upload H7-C evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: freelang-h7b-${{ matrix.name }}-evidence
-          path: evidence/h7b/${{ matrix.name }}
+          name: freelang-h7c-${{ matrix.name }}-evidence
+          path: evidence/h7c/${{ matrix.name }}
           if-no-files-found: error
