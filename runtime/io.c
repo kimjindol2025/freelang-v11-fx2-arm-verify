@@ -25,10 +25,13 @@ const char* _strval(FLValue v) {
 }
 
 FLValue _fl_file_append(FLValue path, FLValue content) {
+    if (path.tag != FL_STRING || fl_string_has_embedded_nul(path)) return fl_bool(false);
     FILE* f = fopen(_strval(path), "ab");
     if (!f) return fl_bool(false);
-    const char* s = _strval(content);
-    fwrite(s, 1, strlen(s), f); fclose(f);
+    const char* data = _strval(content);
+    size_t len = content.tag == FL_STRING ? ((FLString*)content.obj)->len : strlen(data);
+    fwrite(data, 1, len, f);
+    fclose(f);
     return fl_bool(true);
 }
 FLValue file_exists(FLValue path) {

@@ -367,11 +367,9 @@ FLValue get(FLValue obj, FLValue key) {
     if (obj.tag == FL_STRING) {
         if (key.tag != FL_INT) return fl_nil();
         int64_t idx = key.i;
-        const char* s = ((FLString*)obj.obj)->data;
-        int64_t len = (int64_t)strlen(s);
-        if (idx < 0 || idx >= len) return fl_nil();
-        char buf[2] = { s[idx], '\0' };
-        return fl_str_val(buf);
+        FLString* s = (FLString*)obj.obj;
+        if (idx < 0 || idx >= (int64_t)s->len) return fl_nil();
+        return fl_str_val_n(s->data + idx, 1);
     }
     return fl_nil();
 }
@@ -379,7 +377,7 @@ FLValue get(FLValue obj, FLValue key) {
 FLValue length(FLValue obj) {
     if (obj.tag == FL_VECTOR) return fl_vec_len(obj);
     if (obj.tag == FL_MAP)    return fl_map_len(obj);
-    if (obj.tag == FL_STRING) return fl_int((int64_t)strlen(((FLString*)obj.obj)->data));
+    if (obj.tag == FL_STRING) return fl_int((int64_t)((FLString*)obj.obj)->len);
     return fl_int(0);
 }
 

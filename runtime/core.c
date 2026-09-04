@@ -107,17 +107,30 @@ static int fl_is_num(FLValue v) {
 /* forward declaration */
 const char* fl_to_str(FLValue v, char* buf, size_t sz);
 
+/* Convert a FreeLang string to a printable C-string representation.
+ * Embedded NUL is escaped instead of being treated as the end of the value. */
+static int write_string_repr(FLString* string, char* buf, int pos, int sz) {
+    if (pos >= sz - 3) return pos;
+    buf[pos++] = '"';
+    for (uint32_t i = 0; i < string->len; i++) {
+        if (string->data[i] == '\0') {
+            if (pos + 3 >= sz) { memcpy(buf + pos, "...", 3); return pos + 3; }
+            buf[pos++] = '\\';
+            buf[pos++] = '0';
+        } else {
+            if (pos + 2 >= sz) { memcpy(buf + pos, "...", 3); return pos + 3; }
+            buf[pos++] = string->data[i];
+        }
+    }
+    if (pos < sz - 1) buf[pos++] = '"';
+    return pos;
+}
+
 /* repr 모드로 값을 buf[pos]에 쓰고 새 pos 반환 (문자열은 따옴표 포함) */
 static int write_repr(FLValue v, char* buf, int pos, int sz) {
     if (pos >= sz - 4) return pos;
     if (v.tag == FL_STRING) {
-        const char* s = ((FLString*)v.obj)->data;
-        int slen = (int)strlen(s);
-        if (pos + slen + 2 >= sz - 2) { memcpy(buf+pos,"...",3); return pos+3; }
-        buf[pos++] = '"';
-        memcpy(buf+pos, s, slen); pos += slen;
-        buf[pos++] = '"';
-        return pos;
+        return write_string_repr((FLString*)v.obj, buf, pos, sz);
     }
     char tmp[512];
     const char* s = fl_to_str(v, tmp, sizeof(tmp));
@@ -134,14 +147,8 @@ const char* fl_to_str(FLValue v, char* buf, size_t sz) {
         case FL_BOOL:   return v.b ? "true" : "false";
         case FL_NIL:    return "nil";
         case FL_STRING: {
-            /* repr: 따옴표 포함 반환 (fl_print에서 직접 처리로 display 모드 구현) */
-            const char* s = ((FLString*)v.obj)->data;
-            int slen = (int)strlen(s);
-            if (slen + 2 >= (int)sz) { snprintf(buf, sz, "\"...\""); return buf; }
-            buf[0] = '"';
-            memcpy(buf+1, s, slen);
-            buf[slen+1] = '"';
-            buf[slen+2] = '\0';
+            int pos = write_string_repr((FLString*)v.obj, buf, 0, (int)sz);
+            buf[pos < (int)sz ? pos : (int)sz - 1] = '\0';
             return buf;
         }
         case FL_VECTOR: {
@@ -177,23 +184,30 @@ const char* fl_to_str(FLValue v, char* buf, size_t sz) {
 
 /* ── 산술 ── */
 
-/* 문자열 display 변환 (따옴표 없이) — str/add 연결용 */
-static const char* fl_display(FLValue v, char* buf, size_t sz) {
-    if (v.tag == FL_STRING) return ((FLString*)v.obj)->data;
-    return fl_to_str(v, buf, sz);
+/* String values retain their canonical byte length. Non-string display values are C text. */
+static size_t fl_display_bytes(FLValue v, char* buf, size_t sz, const char** out) {
+    if (v.tag == FL_STRING) {
+        FLString* s = (FLString*)v.obj;
+        *out = s->data;
+        return s->len;
+    }
+    *out = fl_to_str(v, buf, sz);
+    return strlen(*out);
 }
 
 FLValue fl_add(FLValue a, FLValue b) {
     if (a.tag == FL_STRING || b.tag == FL_STRING) {
         char ba[256], bb[256];
-        const char* sa = fl_display(a, ba, sizeof(ba));
-        const char* sb = fl_display(b, bb, sizeof(bb));
-        size_t la = strlen(sa), lb = strlen(sb);
+        const char* sa;
+        const char* sb;
+        size_t la = fl_display_bytes(a, ba, sizeof(ba), &sa);
+        size_t lb = fl_display_bytes(b, bb, sizeof(bb), &sb);
         FLString* obj = fl_arena_alloc(sizeof(FLString) + la + lb + 1);
         obj->base.type = FL_STRING; obj->base.rc = 1;
         obj->len = (uint32_t)(la + lb);
         memcpy(obj->data, sa, la);
-        memcpy(obj->data + la, sb, lb + 1);
+        memcpy(obj->data + la, sb, lb);
+        obj->data[la + lb] = '\0';
         FLValue r; r.tag = FL_STRING; r.obj = (FLObject*)obj; return r;
     }
     if (!fl_is_num(a)) fl_type_error("+ (add)", "number", a);
@@ -265,9 +279,10 @@ FLValue fl_eq(FLValue a, FLValue b) {
         case FL_FLOAT:  return fl_bool(a.f == b.f);
         case FL_BOOL:   return fl_bool(a.b == b.b);
         case FL_STRING: {
-            const char* sa = ((FLString*)a.obj)->data;
-            const char* sb = ((FLString*)b.obj)->data;
-            return fl_bool(strcmp(sa, sb) == 0);
+            FLString* sa = (FLString*)a.obj;
+            FLString* sb = (FLString*)b.obj;
+            return fl_bool(sa->len == sb->len &&
+                           memcmp(sa->data, sb->data, sa->len) == 0);
         }
         default:        return fl_bool(false);
     }
@@ -278,9 +293,14 @@ static double fl_num(FLValue v) {
 }
 
 static int fl_str_cmp(FLValue a, FLValue b) {
-    const char* sa = (a.tag==FL_STRING && a.obj) ? ((FLString*)a.obj)->data : "";
-    const char* sb = (b.tag==FL_STRING && b.obj) ? ((FLString*)b.obj)->data : "";
-    return strcmp(sa, sb);
+    FLString* sa = (a.tag == FL_STRING && a.obj) ? (FLString*)a.obj : NULL;
+    FLString* sb = (b.tag == FL_STRING && b.obj) ? (FLString*)b.obj : NULL;
+    size_t alen = sa ? sa->len : 0;
+    size_t blen = sb ? sb->len : 0;
+    size_t common = alen < blen ? alen : blen;
+    int result = common ? memcmp(sa->data, sb->data, common) : 0;
+    if (result) return result;
+    return (alen > blen) - (alen < blen);
 }
 FLValue fl_lt(FLValue a, FLValue b)  {
     if (a.tag==FL_STRING && b.tag==FL_STRING) return fl_bool(fl_str_cmp(a,b) <  0);
@@ -318,8 +338,7 @@ FLValue fl_str_n(int count, ...) {
     size_t total = 0;
     for (int i = 0; i < count; i++) {
         FLValue v = va_arg(ap, FLValue);
-        parts[i] = fl_display(v, bufs[i], 64);
-        lens[i] = strlen(parts[i]);
+        lens[i] = fl_display_bytes(v, bufs[i], sizeof(bufs[i]), &parts[i]);
         total += lens[i];
     }
     va_end(ap);
@@ -339,7 +358,9 @@ FLValue fl_str_n(int count, ...) {
 
 FLValue fl_println(FLValue v) {
     if (v.tag == FL_STRING) {
-        puts(((FLString*)v.obj)->data);
+        FLString* s = (FLString*)v.obj;
+        fwrite(s->data, 1, s->len, stdout);
+        fputc('\n', stdout);
     } else {
         char buf[4096];
         puts(fl_to_str(v, buf, sizeof(buf)));
@@ -349,7 +370,8 @@ FLValue fl_println(FLValue v) {
 
 FLValue fl_print(FLValue v) {
     if (v.tag == FL_STRING) {
-        fputs(((FLString*)v.obj)->data, stdout);
+        FLString* s = (FLString*)v.obj;
+        fwrite(s->data, 1, s->len, stdout);
     } else {
         char buf[4096];
         fputs(fl_to_str(v, buf, sizeof(buf)), stdout);
@@ -362,7 +384,7 @@ FLValue fl_print(FLValue v) {
 /* 결과 문자열은 request arena 또는 process-lifetime registry가 소유한다. */
 
 FLValue fl_file_read(FLValue path) {
-    if (path.tag != FL_STRING) return fl_nil();
+    if (path.tag != FL_STRING || fl_string_has_embedded_nul(path)) return fl_nil();
     const char* p = ((FLString*)path.obj)->data;
     FILE* f = fopen(p, "rb");
     if (!f) return fl_nil();
@@ -379,13 +401,14 @@ FLValue fl_file_read(FLValue path) {
 }
 
 FLValue fl_file_write(FLValue path, FLValue content) {
-    if (path.tag != FL_STRING) return fl_nil();
+    if (path.tag != FL_STRING || fl_string_has_embedded_nul(path)) return fl_nil();
     const char* p = ((FLString*)path.obj)->data;
     char buf[64];
-    const char* s = fl_display(content, buf, sizeof(buf));
+    const char* s;
+    size_t len = fl_display_bytes(content, buf, sizeof(buf), &s);
     FILE* f = fopen(p, "wb");
     if (!f) return fl_nil();
-    fwrite(s, 1, strlen(s), f);
+    fwrite(s, 1, len, f);
     fclose(f);
     return fl_nil();
 }
@@ -393,8 +416,9 @@ FLValue fl_file_write(FLValue path, FLValue content) {
 /* ── js_escape / fl_html_escape ── */
 FLValue js_escape(FLValue s) {
     if (s.tag != FL_STRING) return s;
-    const char* src = ((FLString*)s.obj)->data;
-    size_t n = strlen(src);
+    FLString* input = (FLString*)s.obj;
+    const char* src = input->data;
+    size_t n = input->len;
     /* 최대 6배 확장 */
     char* buf = (char*)malloc(n * 6 + 1);
     if (!buf) return s;
@@ -411,15 +435,16 @@ FLValue js_escape(FLValue s) {
         }
     }
     *dst = '\0';
-    FLValue r = fl_str_val(buf);
+    FLValue r = fl_str_val_n(buf, (uint32_t)(dst - buf));
     free(buf);
     return r;
 }
 
 FLValue fl_html_escape(FLValue s) {
     if (s.tag != FL_STRING) return s;
-    const char* src = ((FLString*)s.obj)->data;
-    size_t n = strlen(src);
+    FLString* input = (FLString*)s.obj;
+    const char* src = input->data;
+    size_t n = input->len;
     char* buf = (char*)malloc(n * 6 + 1);
     if (!buf) return s;
     char* dst = buf;
@@ -435,7 +460,7 @@ FLValue fl_html_escape(FLValue s) {
         }
     }
     *dst = '\0';
-    FLValue r = fl_str_val(buf);
+    FLValue r = fl_str_val_n(buf, (uint32_t)(dst - buf));
     free(buf);
     return r;
 }

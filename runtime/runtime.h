@@ -67,6 +67,14 @@ typedef struct {
     char     data[];
 } FLString;
 
+/* FLString.len is the canonical FreeLang byte length; data[] is NUL-terminated only for C-string interop. */
+static inline bool fl_string_has_embedded_nul(FLValue v) {
+    if (v.tag != FL_STRING || !v.obj) return false;
+    FLString* s = (FLString*)v.obj;
+    for (uint32_t i = 0; i < s->len; i++) if (s->data[i] == '\0') return true;
+    return false;
+}
+
 /* ── S5: Heap Object System ── */
 
 typedef struct {
@@ -121,6 +129,7 @@ FLValue fl_or(FLValue a, FLValue b);
 
 /* ── 문자열 ── */
 FLValue fl_str_n(int count, ...);
+const char* fl_to_str(FLValue v, char* buf, size_t sz);
 
 /* ── I/O ── */
 FLValue fl_println(FLValue v);

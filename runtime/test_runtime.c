@@ -27,6 +27,33 @@ int main(void) {
     CHECK(s.tag == FL_STRING, "fl_str_val tag");
     CHECK(strcmp(((FLString*)s.obj)->data, "hello") == 0, "fl_str_val data");
 
+    /* FLString.len is the binary-safe value contract, not strlen(data). */
+    const char binary_a_nul_b[] = { 'A', '\0', 'B' };
+    const char leading_trailing_nul[] = { '\0', 'A', '\0' };
+    const char multiple_nul[] = { 'A', '\0', 'B', '\0', 'C' };
+    FLValue plain = fl_str_val("ABC");
+    FLValue binary = fl_str_val_n(binary_a_nul_b, 3);
+    FLValue empty_binary = fl_str_val_n("", 0);
+    FLValue edge_binary = fl_str_val_n(leading_trailing_nul, 3);
+    FLValue multi_binary = fl_str_val_n(multiple_nul, 5);
+    CHECK(length(plain).i == 3, "binary length plain");
+    CHECK(length(binary).i == 3, "binary length embedded NUL");
+    CHECK(length(empty_binary).i == 0, "binary length empty");
+    CHECK(length(edge_binary).i == 3, "binary length leading trailing NUL");
+    CHECK(length(multi_binary).i == 5, "binary length multiple NUL");
+    FLValue binary_char = get(binary, fl_int(1));
+    CHECK(length(binary_char).i == 1 && ((FLString*)binary_char.obj)->data[0] == '\0',
+          "binary get embedded NUL");
+    FLValue binary_concat = fl_add(binary, binary);
+    CHECK(length(binary_concat).i == 6 &&
+          memcmp(((FLString*)binary_concat.obj)->data, "A\0BA\0B", 6) == 0,
+          "binary concat preserves NUL");
+    CHECK(fl_truthy(fl_eq(binary, fl_str_val_n(binary_a_nul_b, 3))),
+          "binary equality canonical bytes");
+    char binary_repr[32];
+    CHECK(strcmp(fl_to_str(binary, binary_repr, sizeof(binary_repr)), "\"A\\0B\"") == 0,
+          "binary C-string boundary escapes NUL");
+
     /* ── 조건 판별 ── */
     CHECK(fl_truthy(bt) == true, "truthy bool true");
     CHECK(fl_truthy(bf) == false, "truthy bool false");
@@ -79,6 +106,13 @@ int main(void) {
     FLValue read = fl_file_read(path);
     CHECK(read.tag == FL_STRING, "fl_file_read tag");
     CHECK(strcmp(((FLString*)read.obj)->data, "test content") == 0, "fl_file_read data");
+
+    FLValue binary_path = fl_str_val("/tmp/fl_test_runtime_binary.bin");
+    fl_file_write(binary_path, multi_binary);
+    FLValue binary_read = fl_file_read(binary_path);
+    CHECK(binary_read.tag == FL_STRING && length(binary_read).i == 5 &&
+          memcmp(((FLString*)binary_read.obj)->data, multiple_nul, 5) == 0,
+          "binary file round trip");
 
     /* ── Vector ── */
     FLValue vn = fl_vec_new();
