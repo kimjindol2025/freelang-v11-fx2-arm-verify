@@ -1,0 +1,105 @@
+name: FreeLang H7-B Bootstrap Stability and Reproducibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - verify/runtime-recovery-h4g
+
+jobs:
+  bootstrap-parity:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: arm
+            runner: ubuntu-24.04-arm
+            expected: aarch64
+          - name: x86
+            runner: ubuntu-24.04
+            expected: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc clang binutils file make libsqlite3-dev libssl-dev libcurl4-openssl-dev
+      - name: Bootstrap, reproducibility, parity, and sanitizer gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          E="evidence/h7b/${{ matrix.name }}"
+          D="$E/objects"
+          mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results"
+          uname -a > "$E/environment.txt"
+          uname -m >> "$E/environment.txt"
+          git rev-parse HEAD > "$E/git-head.txt"
+          test "$(uname -m)" = "${{ matrix.expected }}"
+          modules="core collection io math error process json gc aliases debug cgc-bridge"
+          printf '%s\n' $modules > "$E/runtime-closure.txt"
+          for src in $modules; do
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+              -c "runtime/$src.c" -o "$D/$src.o" >> "$E/build.log" 2>&1
+          done
+          build_native() {
+            local input="$1" output="$2" log="$3"
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+              -c "$input" -o "$D/$(basename "$output").o" >> "$log" 2>&1
+            gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$output" \
+              "$D/$(basename "$output").o" \
+              "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" "$D/error.o" \
+              "$D/process.o" "$D/json.o" "$D/gc.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+              -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 >> "$log" 2>&1
+          }
+          build_native target-gen1.c stage1/cgc-bin "$E/stage1.log"
+          file stage1/cgc-bin | tee "$E/stage1-binary.txt"
+          sha256sum stage1/cgc-bin >> "$E/stage1-binary.txt"
+          stage1/cgc-bin self/cgc-main.fl stage2/gen2.c > "$E/stage2-generation.log" 2>&1
+          test -s stage2/gen2.c
+          build_native stage2/gen2.c stage2/cgc-bin "$E/stage2.log"
+          file stage2/cgc-bin | tee "$E/stage2-binary.txt"
+          sha256sum stage2/cgc-bin >> "$E/stage2-binary.txt"
+          stage2/cgc-bin self/cgc-main.fl stage3/gen3.c > "$E/stage3-generation.log" 2>&1
+          test -s stage3/gen3.c
+          build_native stage3/gen3.c stage3/cgc-bin "$E/stage3.log"
+          file stage3/cgc-bin | tee "$E/stage3-binary.txt"
+          sha256sum stage3/cgc-bin >> "$E/stage3-binary.txt"
+          sha256sum stage2/gen2.c stage3/gen3.c > "$E/fixed-point.sha256"
+          cmp stage2/gen2.c stage3/gen3.c
+          echo ARM_C_FIXEDPOINT=PASS > "$E/fixed-point.txt"
+          stage2/cgc-bin self/cgc-main.fl build-A/gen.c > "$E/build-A.log" 2>&1
+          stage2/cgc-bin self/cgc-main.fl build-B/gen.c > "$E/build-B.log" 2>&1
+          cmp build-A/gen.c build-B/gen.c
+          sha256sum build-A/gen.c build-B/gen.c > "$E/generated-reproducibility.sha256"
+          build_native build-A/gen.c build-A/cgc-bin "$E/build-A-native.log"
+          build_native build-B/gen.c build-B/cgc-bin "$E/build-B-native.log"
+          cmp build-A/cgc-bin build-B/cgc-bin
+          sha256sum build-A/cgc-bin build-B/cgc-bin > "$E/binary-reproducibility.sha256"
+          printf '%s\n' \
+            append_basic append_nested bool filter function function_alias higher_order higher_order_custom_parameter \
+            > "$E/parity-manifest.txt"
+          pass=0
+          total=0
+          while read -r name; do
+            total=$((total + 1))
+            CGC_BIN="$PWD/stage2/cgc-bin" bash fl-build.sh "tests/ai-native-parity-smoke/cases/$name.fl" "$E/results/$name.bin" > "$E/results/$name.compile" 2>&1
+            "$E/results/$name.bin" > "$E/results/$name.stdout" 2> "$E/results/$name.stderr"
+            pass=$((pass + 1))
+          done < "$E/parity-manifest.txt"
+          echo "PARITY_TEST_COUNT=$total" > "$E/parity-summary.txt"
+          echo "PARITY_PASS_COUNT=$pass" >> "$E/parity-summary.txt"
+          test "$pass" -eq "$total"
+          if [ -x tools/run-memory-ownership.sh ]; then
+            CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' \
+              ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
+              ./tools/run-memory-ownership.sh > "$E/asan.log" 2> "$E/ubsan.log"
+          fi
+          find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
+      - name: Upload H7-B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freelang-h7b-${{ matrix.name }}-evidence
+          path: evidence/h7b/${{ matrix.name }}
+          if-no-files-found: error
