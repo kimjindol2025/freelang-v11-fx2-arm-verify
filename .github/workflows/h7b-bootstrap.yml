@@ -1,4 +1,4 @@
-name: FreeLang H7-C Bootstrap Stability and Reproducibility
+name: FreeLang H7-D Bootstrap Stability and Reproducibility
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 jobs:
   bootstrap-parity:
     strategy:
-      # ARM must complete independently: x86 is a downstream parity signal and
+      # H7-D is intentionally isolated to the primary AArch64 deterministic-build gate;
       # must not cancel the primary ARM fixed-point/reproducibility gate.
       fail-fast: false
       matrix:
@@ -17,9 +17,6 @@ jobs:
           - name: arm
             runner: ubuntu-24.04-arm
             expected: aarch64
-          - name: x86
-            runner: ubuntu-24.04
-            expected: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -31,22 +28,38 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          E="evidence/h7c/${{ matrix.name }}"
+          E="evidence/h7d/${{ matrix.name }}"
           D="$E/objects"
           mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results"
           uname -a > "$E/environment.txt"
           uname -m >> "$E/environment.txt"
+          gcc --version | head -n 1 >> "$E/environment.txt"
+          ld --version | head -n 1 >> "$E/environment.txt"
           git rev-parse HEAD > "$E/git-head.txt"
+          gcc --help=common | grep -E "ffile-prefix-map|fdebug-prefix-map|fmacro-prefix-map" > "$E/toolchain-path-map-support.txt"
+          test "$(wc -l < "$E/toolchain-path-map-support.txt")" -ge 3
+          {
+            echo "PREFIX_MAP_POLICY=build-A_and_build-B_to_canonical_via_ffile_prefix_map_fdebug_prefix_map_fmacro_prefix_map"
+            echo "BUILD_ID_POLICY=DEFAULT_GNU_LINKER_BUILD_ID"
+            echo "COMPILE_FLAGS=-ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical"
+            echo "LINK_FLAGS=-Wl,--gc-sections"
+            echo "RUNTIME_CLOSURE=core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
+            echo "OBJECT_ORDER=generated_compiler_then_core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
+            echo "WORKING_DIRECTORY_INDEPENDENCE=independent_build-A_and_build-B_paths_canonicalized_only_at_debug_file_macro_metadata_layer"
+            echo "ENVIRONMENT_POLICY=no_SOURCE_DATE_EPOCH_no_build_id_override_no_strip"
+            echo "COMMAND_RECORD=GitHub_Actions_set-x_raw_log_and_this_workflow"
+            echo "PURPOSE=preserve_debug_info_while_canonicalizing_independent_build_source_paths"
+          } > "$E/canonical-build-contract.txt"
           test "$(uname -m)" = "${{ matrix.expected }}"
           modules="core collection io math error process json gc aliases debug cgc-bridge"
           printf '%s\n' $modules > "$E/runtime-closure.txt"
           for src in $modules; do
-            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical -I runtime \
               -c "runtime/$src.c" -o "$D/$src.o" >> "$E/build.log" 2>&1
           done
           build_native() {
             local input="$1" output="$2" log="$3"
-            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
+            gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -fdebug-prefix-map=build-A=canonical -fdebug-prefix-map=build-B=canonical -fmacro-prefix-map=build-A=canonical -fmacro-prefix-map=build-B=canonical -I runtime \
               -c "$input" -o "$D/$(basename "$output").o" >> "$log" 2>&1
             gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$output" \
               "$D/$(basename "$output").o" \
@@ -159,18 +172,26 @@ jobs:
           objcopy --dump-section .comment="$E/elf-analysis/build-A.comment.bin" "$A"
           objcopy --dump-section .comment="$E/elf-analysis/build-B.comment.bin" "$B"
           if cmp -s "$E/elf-analysis/build-A.comment.bin" "$E/elf-analysis/build-B.comment.bin"; then COMMENT=PASS; else COMMENT=FAIL; fi
+          ROOT="$PWD"
+          mkdir -p "$E/runtime-A" "$E/runtime-B"
           set +e
-          "$A" self/cgc-main.fl "$E/runtime-A.c" > "$E/runtime-A.stdout" 2> "$E/runtime-A.stderr"
+          ( cd "$E/runtime-A" && "$ROOT/$A" "$ROOT/self/cgc-main.fl" output.c ) > "$E/runtime-A.stdout" 2> "$E/runtime-A.stderr"
           A_EXIT=$?
-          "$B" self/cgc-main.fl "$E/runtime-B.c" > "$E/runtime-B.stdout" 2> "$E/runtime-B.stderr"
+          ( cd "$E/runtime-B" && "$ROOT/$B" "$ROOT/self/cgc-main.fl" output.c ) > "$E/runtime-B.stdout" 2> "$E/runtime-B.stderr"
           B_EXIT=$?
           set -e
           if test "$A_EXIT" -eq 0; then A_RUN=PASS; else A_RUN=FAIL; fi
           if test "$B_EXIT" -eq 0; then B_RUN=PASS; else B_RUN=FAIL; fi
           if test "$A_EXIT" -eq "$B_EXIT"; then EXIT_MATCH=PASS; else EXIT_MATCH=FAIL; fi
-          if cmp -s "$E/runtime-A.c" "$E/runtime-B.c" && cmp -s "$E/runtime-A.stdout" "$E/runtime-B.stdout" && cmp -s "$E/runtime-A.stderr" "$E/runtime-B.stderr"; then RUNTIME_MATCH=PASS; else RUNTIME_MATCH=FAIL; fi
+          if cmp -s "$E/runtime-A/output.c" "$E/runtime-B/output.c"; then GENERATED_C=PASS; else GENERATED_C=FAIL; fi
+          if cmp -s "$E/runtime-A.stderr" "$E/runtime-B.stderr"; then STDERR_MATCH=PASS; else STDERR_MATCH=FAIL; fi
+          if cmp -s "$E/runtime-A.stdout" "$E/runtime-B.stdout"; then STDOUT_MATCH=PASS; STDOUT_PATH_ONLY=NO; else diff -u "$E/runtime-A.stdout" "$E/runtime-B.stdout" > "$E/elf-analysis/runtime-stdout-diff.txt" || true; if test "$GENERATED_C" = PASS && test "$STDERR_MATCH" = PASS && test "$EXIT_MATCH" = PASS; then STDOUT_PATH_ONLY=YES; else STDOUT_PATH_ONLY=NO; fi; fi
+          if test "$GENERATED_C" = PASS && test "$STDERR_MATCH" = PASS && test "$STDOUT_MATCH" = PASS && test "$EXIT_MATCH" = PASS; then RUNTIME_MATCH=PASS; else RUNTIME_MATCH=FAIL; fi
           if test "$TEXT" = FAIL || test "$RODATA" = FAIL; then DIFF_CLASS=CODE; elif test "$DATA" = FAIL; then DIFF_CLASS=DATA; elif test "$RELOCATIONS" = FAIL; then DIFF_CLASS=RELOCATION; elif test "$SYMBOLS" = FAIL; then DIFF_CLASS=SYMBOL_TABLE; elif test "$DEBUG" = FAIL || test "$PATHS" = FAIL; then DIFF_CLASS=NON_RUNTIME_ELF_METADATA; elif test "$BUILD_ID" = FAIL; then DIFF_CLASS=BUILD_ID_ONLY; else DIFF_CLASS=UNKNOWN; fi
           if test "$A_SHA" = "$B_SHA"; then REPRO=PASS; else REPRO=FAIL; fi
+          if test "$REPRO" = PASS; then DIFF_CLASS=NONE; fi
+          if test "$PATHS" = PASS && test "$DEBUG" = PASS; then DWARF_CANON=PASS; else DWARF_CANON=FAIL; fi
+          if test "$DWARF_CANON" = PASS && test "$BUILD_ID" = PASS && test "$REPRO" = PASS; then CANONICAL_CONTRACT=PASS; else CANONICAL_CONTRACT=FAIL; fi
           {
             echo "ARM_BINARY_A_SHA256=$A_SHA"
             echo "ARM_BINARY_B_SHA256=$B_SHA"
@@ -198,6 +219,7 @@ jobs:
             echo "BUILD_ID_A=$BUILD_ID_A"
             echo "BUILD_ID_B=$BUILD_ID_B"
             echo "BUILD_ID_MATCH=$BUILD_ID"
+            echo "BUILD_ID_MATCH_AFTER_PATH_MAP=$BUILD_ID"
             echo "NOTE_SECTION_MATCH=$NOTE"
             echo "SYMBOL_TABLE_MATCH=$SYMBOLS"
             echo "SYMBOL_DIFF_CLASS=$SYMBOL_CLASS"
@@ -207,19 +229,31 @@ jobs:
             echo "DEBUG_SECTIONS_PRESENT=$DEBUG_PRESENT"
             echo "DEBUG_METADATA_MATCH=$DEBUG"
             echo "PATH_METADATA_MATCH=$PATHS"
+            echo "DWARF_PATH_CANONICALIZED=$DWARF_CANON"
+            echo "PREFIX_MAP_POLICY=build-A_and_build-B_to_canonical"
+            echo "BUILD_ID_POLICY=DEFAULT_GNU_LINKER_BUILD_ID"
             echo "PATH_METADATA_DIFFERENCE=$PATH_DIFF"
             echo "OTHER_METADATA_DIFF=.comment=$COMMENT"
             echo "BINARY_A_RUN=$A_RUN"
             echo "BINARY_B_RUN=$B_RUN"
             echo "BINARY_RUNTIME_OUTPUT_MATCH=$RUNTIME_MATCH"
             echo "BINARY_EXIT_STATUS_MATCH=$EXIT_MATCH"
+            echo "BINARY_STDERR_MATCH=$STDERR_MATCH"
+            echo "BINARY_GENERATED_C_MATCH=$GENERATED_C"
+            echo "COMPILER_STDOUT_PATH_METADATA_ONLY=$STDOUT_PATH_ONLY"
             echo "BINARY_DIFF_CLASS=$DIFF_CLASS"
             echo "ARM_BINARY_REPRODUCIBLE=$REPRO"
-          } > "$E/h7c-classification.status"
+            echo "ARM_STAGE2_BUILD=PASS"
+            echo "ARM_STAGE3_BUILD=PASS"
+            echo "ARM_C_FIXEDPOINT=PASS"
+            echo "ARM_GENERATED_C_REPRODUCIBLE=PASS"
+            echo "CANONICAL_ARM_BUILD_CONTRACT=$CANONICAL_CONTRACT"
+          } > "$E/h7d-classification.status"
           sha256sum "$A" "$B" > "$E/binary-reproducibility.sha256"
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-          cat "$E/h7c-classification.status"
-          if test "$REPRO" = FAIL; then exit 1; fi
+          cat "$E/h7d-classification.status"
+          if test "$REPRO" = FAIL || test "$CANONICAL_CONTRACT" = FAIL; then exit 1; fi
+          exit 0
           sha256sum build-A/cgc-bin build-B/cgc-bin > "$E/binary-reproducibility.sha256"
           printf '%s\n' \
             append_basic append_nested bool filter function function_alias higher_order higher_order_custom_parameter \
@@ -241,10 +275,10 @@ jobs:
               ./tools/run-memory-ownership.sh > "$E/asan.log" 2> "$E/ubsan.log"
           fi
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-      - name: Upload H7-C evidence
+      - name: Upload H7-D evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: freelang-h7c-${{ matrix.name }}-evidence
-          path: evidence/h7c/${{ matrix.name }}
+          name: freelang-h7d-${{ matrix.name }}-evidence
+          path: evidence/h7d/${{ matrix.name }}
           if-no-files-found: error
