@@ -2,6 +2,9 @@ name: FreeLang AArch64 H4G Stage1 Crash Capture
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - verify/runtime-recovery-h4g
 
 jobs:
   crash-capture:
