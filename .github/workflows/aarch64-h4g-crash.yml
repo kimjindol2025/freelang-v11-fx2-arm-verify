@@ -74,6 +74,22 @@ jobs:
           gdb_rc=$?
           echo "GDB_EXIT=$gdb_rc" >> "$E/gdb.log"
 
+          if [ -s "$E/generated.c" ]; then
+            gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections \
+              -o "$E/stage2-debug" "$E/generated.c" \
+              "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" \
+              "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" \
+              "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+              -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 \
+              > "$E/stage2-link.log" 2>&1 || rc=1
+            if [ -x "$E/stage2-debug" ]; then
+              "$E/stage2-debug" self/cgc-main.fl "$E/stage2-generated.c" > "$E/stage2-run.log" 2>&1
+              stage2_rc=$?
+              echo "STAGE2_RUN_EXIT=$stage2_rc" >> "$E/stage2-run.log"
+              [ "$stage2_rc" -eq 0 ] || rc=1
+            fi
+          fi
+
           gcc -D_GNU_SOURCE -g -O0 -fsanitize=address,undefined \
             -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
             -c target-gen1.c -o "$D/target-gen1-sanitize.o" > "$E/sanitize-build.log" 2>&1 || rc=1
