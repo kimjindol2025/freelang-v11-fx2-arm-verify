@@ -1,0 +1,8 @@
+(load "./h8h/module_a.fl")
+(load "./h8h/module_b.fl")
+
+(defn h8h_callback_scale
+  [$value]
+  (h8h_a_double $value))
+
+(println (h8h_b_callback_apply (list 1 2 3 4) h8h_callback_scale))

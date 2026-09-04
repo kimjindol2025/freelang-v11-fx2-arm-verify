@@ -137,6 +137,26 @@
         {
           "name": "append_basic",
           "source": "cases/append_basic.fl"
+        },
+        {
+          "name": "h8h_module_value_transfer",
+          "source": "cases/h8h_module_value_transfer.fl"
+        },
+        {
+          "name": "h8h_module_callback",
+          "source": "cases/h8h_module_callback.fl"
+        },
+        {
+          "name": "h8h_module_ownership",
+          "source": "cases/h8h_module_ownership.fl"
+        },
+        {
+          "name": "h8h_module_stale_handle",
+          "source": "cases/h8h_module_stale_handle.fl"
+        },
+        {
+          "name": "h8h_module_error_propagation",
+          "source": "cases/h8h_module_error_propagation.fl"
         }
       ]
     },

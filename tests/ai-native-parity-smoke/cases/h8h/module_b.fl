@@ -1,0 +1,30 @@
+(defn h8h_b_sum_reducer
+  [$acc $value]
+  (+ $acc $value))
+
+(defn h8h_b_value_transfer
+  []
+  (+ (h8h_a_map_value "left")
+     (h8h_a_map_value "right")))
+
+(defn h8h_b_callback_apply
+  [$items $callback]
+  (h8h_a_collect_with_callback $items $callback))
+
+(defn h8h_b_callback_probe
+  []
+  (reduce h8h_b_sum_reducer 0
+    (h8h_b_callback_apply (list 1 2 3 4) h8h_a_double)))
+
+(defn h8h_b_ownership_probe
+  []
+  (+ (h8h_a_map_value "left")
+     (h8h_a_map_value "right")))
+
+(defn h8h_b_stale_handle_probe
+  []
+  (+ (h8h_a_map_value "left") (h8h_a_map_value "right")))
+
+(defn h8h_b_error_probe
+  []
+  (h8h_a_divide 8 2))
