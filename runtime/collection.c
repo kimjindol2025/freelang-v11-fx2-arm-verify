@@ -3,7 +3,7 @@
  *
  * 메모리 전략:
  *   - 요청 처리 중 (fl_arena_begin ~ fl_arena_end): Arena에 할당
- *   - 요청 외부 (전역 define, startup): malloc 폴백 (fl_arena_alloc 내부)
+ *   - 요청 외부 (전역 define, startup): process-lifetime registry
  *   - 클로저(fl_fn_new): 장기 생존 가능 → 항상 malloc
  *   - 빌더(fl_vec_builder_new): heap malloc, rc=0xFE 표시, freeze로 arena 변환
  *
@@ -18,7 +18,7 @@
 #include <string.h>
 
 /* ── Arena 헬퍼 매크로 ──────────────────────────────────────────────
-   fl_arena_alloc: arena 활성 시 bump 할당, 비활성 시 malloc 폴백
+   fl_arena_alloc: arena 활성 시 bump 할당, 비활성 시 process-lifetime registry
 */
 #define A(size) fl_arena_alloc(size)
 
@@ -120,7 +120,10 @@ FLValue fl_append(FLValue left, FLValue right) {
         FLVector* a = (FLVector*)left.obj;
         FLVector* b = (FLVector*)right.obj;
         uint32_t n = a->len + b->len;
-        FLValue* items = n ? A(sizeof(FLValue) * n) : NULL;
+        /* This is a transient assembly buffer, unlike the returned vector.
+         * It is deliberately plain heap memory because this function frees it
+         * before returning. */
+        FLValue* items = n ? malloc(sizeof(FLValue) * n) : NULL;
         if (a->len) memcpy(items, a->data, sizeof(FLValue) * a->len);
         if (b->len) memcpy(items + a->len, b->data, sizeof(FLValue) * b->len);
         FLValue out = fl_vec_from(items, n);

@@ -523,6 +523,7 @@ void    fl_arena_end(void);
 void    fl_arena_stats(void);
 void*   fl_perm_alloc(size_t size);
 void    fl_perm_cleanup(void);
+void    fl_runtime_shutdown(void);
 FLValue fl_memory_stats(void);
 
 /* ── 디버그 레이어 (debug.c) ── */

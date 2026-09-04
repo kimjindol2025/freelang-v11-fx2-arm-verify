@@ -19,14 +19,15 @@ FLValue fl_float(double v) {
 }
 
 /*
- * fl_str_val: 요청 처리 중에는 Arena에서 할당, 그 외엔 malloc
+ * fl_str_val: 요청 처리 중에는 Arena에서 할당, 그 외엔 process-lifetime registry
  *
  * Arena 할당은 요청 완료 시 fl_arena_end()로 일괄 해제.
- * malloc 할당은 GC 없이 OS에 맡김 (시작/종료 시점 객체).
+ * 요청 밖 할당은 runtime process-lifetime registry가 소유하고
+ * fl_runtime_shutdown()에서 해제한다.
  *
  * 둘을 섞어도 안전한 이유: FLString을 직접 free하는 코드가 없음.
  * Arena 객체는 arena_end 후 재사용되므로 dangling 참조 주의.
- * → 요청 핸들러 외부(전역 define)는 malloc이 더 안전.
+ * → 요청 핸들러 외부(전역 define)는 process-lifetime registry가 안전하다.
  */
 FLValue fl_str_val(const char* s) {
     size_t len = strlen(s);
@@ -188,7 +189,7 @@ FLValue fl_add(FLValue a, FLValue b) {
         const char* sa = fl_display(a, ba, sizeof(ba));
         const char* sb = fl_display(b, bb, sizeof(bb));
         size_t la = strlen(sa), lb = strlen(sb);
-        FLString* obj = malloc(sizeof(FLString) + la + lb + 1);
+        FLString* obj = fl_arena_alloc(sizeof(FLString) + la + lb + 1);
         obj->base.type = FL_STRING; obj->base.rc = 1;
         obj->len = (uint32_t)(la + lb);
         memcpy(obj->data, sa, la);
@@ -322,7 +323,7 @@ FLValue fl_str_n(int count, ...) {
         total += lens[i];
     }
     va_end(ap);
-    FLString* obj = malloc(sizeof(FLString) + total + 1);
+    FLString* obj = fl_arena_alloc(sizeof(FLString) + total + 1);
     obj->base.type = FL_STRING; obj->base.rc = 1;
     obj->len = (uint32_t)total;
     size_t off = 0;
@@ -358,7 +359,7 @@ FLValue fl_print(FLValue v) {
 
 /* ── 파일 I/O ── */
 
-/* Phase A 메모리: malloc 후 프로세스 종료 시 OS 회수. Arena는 Phase B에서 추가. */
+/* 결과 문자열은 request arena 또는 process-lifetime registry가 소유한다. */
 
 FLValue fl_file_read(FLValue path) {
     if (path.tag != FL_STRING) return fl_nil();
@@ -368,7 +369,7 @@ FLValue fl_file_read(FLValue path) {
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     rewind(f);
-    FLString* obj = malloc(sizeof(FLString) + (size_t)sz + 1);
+    FLString* obj = fl_arena_alloc(sizeof(FLString) + (size_t)sz + 1);
     obj->base.type = FL_STRING; obj->base.rc = 1;
     obj->len = (uint32_t)sz;
     fread(obj->data, 1, (size_t)sz, f);

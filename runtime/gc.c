@@ -51,6 +51,15 @@ typedef struct {
 /* ── per-thread 아레나 ── */
 static __thread Arena* g_arena = NULL;
 
+/* Runtime-owned memory must be released before LeakSanitizer runs.  The
+ * registration is deliberately lazy: native embedders that never allocate a
+ * managed value do not acquire any runtime teardown work. */
+static pthread_once_t g_runtime_cleanup_once = PTHREAD_ONCE_INIT;
+
+static void fl_register_runtime_cleanup(void) {
+    (void)atexit(fl_runtime_shutdown);
+}
+
 static ArenaChunk* arena_new_chunk(size_t min_size) {
     size_t cap = ARENA_CHUNK_SIZE;
     if (min_size + sizeof(ArenaChunk) > cap)
@@ -64,6 +73,7 @@ static ArenaChunk* arena_new_chunk(size_t min_size) {
 }
 
 void fl_arena_begin(void) {
+    pthread_once(&g_runtime_cleanup_once, fl_register_runtime_cleanup);
     if (!g_arena) {
         g_arena = malloc(sizeof(Arena));
         g_arena->head  = arena_new_chunk(0);
@@ -79,7 +89,9 @@ void fl_arena_begin(void) {
 }
 
 void* fl_arena_alloc(size_t size) {
-    if (!g_arena || !g_arena->head) return malloc(size);  /* 폴백 */
+    /* Values created outside a request are process-lifetime values, not
+     * unowned malloc allocations.  fl_runtime_shutdown releases them. */
+    if (!g_arena || !g_arena->head) return fl_perm_alloc(size);
 
     /* 8바이트 정렬 */
     size = (size + 7) & ~(size_t)7;
@@ -94,7 +106,7 @@ void* fl_arena_alloc(size_t size) {
 
     /* 새 청크 필요 */
     ArenaChunk* nc = c->next ? c->next : arena_new_chunk(size);
-    if (!nc) return malloc(size);  /* OOM 폴백 */
+    if (!nc) return fl_perm_alloc(size);  /* OOM 폴백 */
 
     if (!c->next) c->next = nc;
     nc->used = 0;
@@ -112,6 +124,19 @@ void fl_arena_end(void) {
     ArenaChunk* c = g_arena->first;
     while (c) { c->used = 0; c = c->next; }
     g_arena->head = g_arena->first;
+}
+
+static void fl_arena_cleanup(void) {
+    ArenaChunk* c;
+    if (!g_arena) return;
+    c = g_arena->first;
+    while (c) {
+        ArenaChunk* next = c->next;
+        free(c);
+        c = next;
+    }
+    free(g_arena);
+    g_arena = NULL;
 }
 
 /* 누적 통계 (debug level 2+) */
@@ -138,6 +163,7 @@ static size_t          g_perm_count = 0;
 static pthread_mutex_t g_perm_lock  = PTHREAD_MUTEX_INITIALIZER;
 
 void* fl_perm_alloc(size_t size) {
+    pthread_once(&g_runtime_cleanup_once, fl_register_runtime_cleanup);
     void* ptr = malloc(size);
     if (!ptr) return NULL;
     PermNode* node = (PermNode*)malloc(sizeof(PermNode));
@@ -164,6 +190,13 @@ void fl_perm_cleanup(void) {
     g_perm_head  = NULL;
     g_perm_count = 0;
     pthread_mutex_unlock(&g_perm_lock);
+}
+
+/* Call only after application work and worker shutdown are complete.  It is
+ * idempotent and is also registered automatically for normal process exit. */
+void fl_runtime_shutdown(void) {
+    fl_perm_cleanup();
+    fl_arena_cleanup();
 }
 
 /* ── RC-Heap GC — atom 보유값 전용 ──────────────────
