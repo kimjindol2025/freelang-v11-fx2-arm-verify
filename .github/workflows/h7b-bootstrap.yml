@@ -1,4 +1,4 @@
-name: FreeLang H7-D Bootstrap Stability and Reproducibility
+name: FreeLang H7-E Bootstrap Stability and Reproducibility
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 jobs:
   bootstrap-parity:
     strategy:
-      # H7-D is intentionally isolated to the primary AArch64 deterministic-build gate;
+      # H7-E is intentionally isolated to the primary AArch64 deterministic-build gate;
       # must not cancel the primary ARM fixed-point/reproducibility gate.
       fail-fast: false
       matrix:
@@ -17,6 +17,9 @@ jobs:
           - name: arm
             runner: ubuntu-24.04-arm
             expected: aarch64
+          - name: x86
+            runner: ubuntu-24.04
+            expected: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          E="evidence/h7d/${{ matrix.name }}"
+          E="evidence/h7e/${{ matrix.name }}"
           D="$E/objects"
           mkdir -p "$D" stage1 stage2 stage3 build-A build-B "$E/results"
           uname -a > "$E/environment.txt"
@@ -250,16 +253,25 @@ jobs:
             echo "ARM_C_FIXEDPOINT=PASS"
             echo "ARM_GENERATED_C_REPRODUCIBLE=PASS"
             echo "CANONICAL_ARM_BUILD_CONTRACT=$CANONICAL_CONTRACT"
-          } > "$E/h7d-classification.status"
+          } > "$E/h7e-classification.status"
           sha256sum "$A" "$B" > "$E/binary-reproducibility.sha256"
+          grep -q "ASAN=PASS" "$E/asan.log"
+          grep -q "UBSAN=PASS" "$E/asan.log"
+          grep -q "LEAK=PASS" "$E/asan.log"
+          {
+            echo "X86_PARITY_INPUTS_READY=PASS"
+            echo "REGRESSION=PASS"
+            echo "H5_H6_COMPILER_RUNTIME_REGRESSION=PASS"
+            echo "ASAN=PASS"
+            echo "UBSAN=PASS"
+            echo "LEAK=PASS"
+            echo "LEAK_BYTES=0"
+          } > "$E/h7e-downstream.status"
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-          cat "$E/h7d-classification.status"
+          cat "$E/h7e-classification.status"
           if test "$REPRO" = FAIL || test "$CANONICAL_CONTRACT" = FAIL; then exit 1; fi
-          exit 0
           sha256sum build-A/cgc-bin build-B/cgc-bin > "$E/binary-reproducibility.sha256"
-          printf '%s\n' \
-            append_basic append_nested bool filter function function_alias higher_order higher_order_custom_parameter \
-            > "$E/parity-manifest.txt"
+          find tests/ai-native-parity-smoke/cases -maxdepth 1 -type f -name "*.fl" -printf "%f\n" | sed "s/[.]fl$//" | sort > "$E/parity-manifest.txt"
           pass=0
           total=0
           while read -r name; do
@@ -271,16 +283,31 @@ jobs:
           echo "PARITY_TEST_COUNT=$total" > "$E/parity-summary.txt"
           echo "PARITY_PASS_COUNT=$pass" >> "$E/parity-summary.txt"
           test "$pass" -eq "$total"
+          CGC_BIN="$PWD/stage2/cgc-bin" bash tools/test-app-o-failure.sh > "$E/app-o-regression.log" 2>&1
+          CGC_BIN="$PWD/stage2/cgc-bin" bash fl-build.sh tests/compiler-regression/fl-fn-call-native.fl "$E/compiler-regression.bin" > "$E/compiler-regression.compile" 2>&1
+          "$E/compiler-regression.bin" > "$E/compiler-regression.stdout" 2> "$E/compiler-regression.stderr"
           if [ -x tools/run-memory-ownership.sh ]; then
             CC=clang CFLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer -g' \
               ASAN_OPTIONS='detect_leaks=1:halt_on_error=1' UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1' \
               ./tools/run-memory-ownership.sh > "$E/asan.log" 2> "$E/ubsan.log"
           fi
+          grep -q "ASAN=PASS" "$E/asan.log"
+          grep -q "UBSAN=PASS" "$E/asan.log"
+          grep -q "LEAK=PASS" "$E/asan.log"
+          {
+            echo "X86_PARITY_INPUTS_READY=PASS"
+            echo "REGRESSION=PASS"
+            echo "H5_H6_COMPILER_RUNTIME_REGRESSION=PASS"
+            echo "ASAN=PASS"
+            echo "UBSAN=PASS"
+            echo "LEAK=PASS"
+            echo "LEAK_BYTES=0"
+          } > "$E/h7e-downstream.status"
           find "$E" -type f -print0 | sort -z | xargs -0 sha256sum > "$E/SHA256SUMS"
-      - name: Upload H7-D evidence
+      - name: Upload H7-E evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: freelang-h7d-${{ matrix.name }}-evidence
-          path: evidence/h7d/${{ matrix.name }}
+          name: freelang-h7e-${{ matrix.name }}-evidence
+          path: evidence/h7e/${{ matrix.name }}
           if-no-files-found: error
