@@ -707,12 +707,12 @@
   (str "fl_user_" (c-name $n)))
 
 (defn cgc-user-defn? [$n]
-  (includes-item @known-defns-atom (user-c-name $n)))
+  (includes-item (deref known-defns-atom) (user-c-name $n)))
 
 (defn cgc-language-special-form? [$op]
   ;; These are syntax, rather than runtime ABI names, and remain non-shadowable.
   (includes-item ["if" "cond" "do" "let" "defn" "define" "set!"
-                  "while" "loop" "recur" "fn" "and" "or"] $op))
+                  "while" "loop" "recur" "fn" "and" "or" "try" "throw"] $op))
 
 ;; ── 메인 dispatch ──
 
@@ -725,12 +725,12 @@
             [$cn   (c-name $name)]
             [$user-cn (user-c-name $name)]
             [$line (get $n :line)]]
-        (if (includes-item @known-defns-atom $user-cn)
+        (if (includes-item (deref known-defns-atom) $user-cn)
           (str "fl_fn_new(__fl_wrap_" $user-cn ", 0, NULL)")
-          (if (includes-item @known-user-globals-atom $user-cn)
+          (if (includes-item (deref known-user-globals-atom) $user-cn)
             $user-cn
             ;; 알려진 함수/변수가 아니면 경고 출력 (컴파일 시점)
-            (if (and (not (includes-item @known-fncall-targets-atom $cn))
+            (if (and (not (includes-item (deref known-fncall-targets-atom) $cn))
                      (not (cgc-runtime-value-callable? $cn)))
               (do
                 (println (str "[FL Warn] 정의되지 않은 이름: " $name
@@ -739,6 +739,7 @@
               $cn))))]
     [(= (get $n :kind) "keyword")   (str "fl_str_val(\"" (c-esc (get $n :name)) "\")")]
     [(= (get $n :kind) "sexpr")     (cgc-sexpr $n)]
+    [(= (get $n :kind) "try")       (cgc-try (list (get $n :body) (get $n :catch) (get $n :finally)))]
     [(= (get $n :kind) "block")     (cgc-block $n)]
     [(= (get $n :kind) "and")       (cgc-and (get $n :args))]
     [(= (get $n :kind) "or")        (cgc-or (get $n :args))]
@@ -761,9 +762,9 @@
                         [(or (= $v "nil") (= $v "null")) "fl_nil()"]
                         [true (let [[$cn (c-name $v)]
                                     [$user-cn (user-c-name $v)]]
-                                (if (includes-item @known-defns-atom $user-cn)
+                                (if (includes-item (deref known-defns-atom) $user-cn)
                                   (str "fl_fn_new(__fl_wrap_" $user-cn ", 0, NULL)")
-                                  (if (includes-item @known-user-globals-atom $user-cn)
+                                  (if (includes-item (deref known-user-globals-atom) $user-cn)
                                     $user-cn
                                     $cn)))])]
     [true
@@ -811,7 +812,7 @@
 ;; S23: FLValue fn 동적 호출 — fl_fn_call 사용
 (defn cgc-fncall [$fn-c $args]
   (let [[$argc (length $args)]
-        [$id @lambda-id-atom]]
+        [$id (deref lambda-id-atom)]]
     (swap! lambda-id-atom + 1)
     (if (= $argc 0)
       (str "fl_fn_call(" $fn-c ", 0, NULL)")
@@ -825,11 +826,58 @@
     (cgc-dispatch $op $args)
     (cgc-fncall (cgc $op) $args))))
 
+(defn cgc-try [$args]
+  (let [[$id (deref lambda-id-atom)]
+        [$body (get $args 0)]
+        [$catch-node-raw (if (>= (length $args) 2) (get $args 1) nil)]
+        [$catch-node (if (map? $catch-node-raw)
+                         (if (and (= (get $catch-node-raw :kind) "literal")
+                                  (= (get $catch-node-raw :type) "nil"))
+                           nil
+                           $catch-node-raw)
+                         nil)]
+        [$catch-args (if (map? $catch-node)
+                       (if (= (get $catch-node :kind) "sexpr")
+                         (get $catch-node :args)
+                         [])
+                       [])]
+        [$catch-param (if (>= (length $catch-args) 1)
+                         (cgc-extract-name (get $catch-args 0))
+                         "__fl_error")]
+        [$catch-body (if (>= (length $catch-args) 2)
+                       (get $catch-args 1)
+                       {:kind "literal" :type "nil" :value nil})]
+        [$body-c (cgc $body)]
+        [$catch-c (cgc $catch-body)]]
+    (swap! lambda-id-atom + 1)
+    (str "(__extension__ ({ FLValue __fl_try_result_" $id " = fl_nil(); "
+         "FLValue __fl_try_error_" $id " = fl_nil(); "
+         "if (fl_try_top >= FL_TRY_MAX) { "
+         "fl_throw(fl_str_val(\"try stack overflow\")); "
+         "} else { "
+         "int __fl_try_jump_" $id " = setjmp(fl_try_stack[fl_try_top].buf); "
+         "if (__fl_try_jump_" $id " == 0) { "
+         "fl_try_top++; "
+         "__fl_try_result_" $id " = " $body-c "; "
+         "fl_try_top--; "
+         "} else { "
+         "__fl_try_error_" $id " = fl_try_stack[fl_try_top - 1].err; "
+         "fl_try_top--; "
+         (if (not (map? $catch-node))
+           (str "fl_throw(__fl_try_error_" $id ");")
+           (str "FLValue __fl_caught_value_" $id " = __fl_try_error_" $id "; "
+                "char __fl_caught_msg_" $id "[256]; "
+                "FLValue __fl_caught_message_" $id " = (__fl_caught_value_" $id ".tag == FL_MAP) ? fl_map_get(__fl_caught_value_" $id ", fl_str_val(\"message\")) : fl_nil(); "
+                "FLValue " $catch-param " = (__fl_caught_value_" $id ".tag == FL_MAP && __fl_caught_message_" $id ".tag == FL_STRING) ? __fl_caught_value_" $id " : fl_make_error(\"RuntimeError\", fl_to_str(__fl_caught_value_" $id ", __fl_caught_msg_" $id ", sizeof(__fl_caught_msg_" $id "))); "
+                "__fl_try_result_" $id " = " $catch-c ";"))
+         "} } __fl_try_result_" $id "; }))")))
 (defn cgc-dispatch [$op $args]
   (if (and (cgc-user-defn? $op) (not (cgc-language-special-form? $op)))
     (str (user-c-name $op) "(" (cgc-args $args) ")")
   (cond
   [(= $op "if")     (cgc-if $args)]
+  [(= $op "try")     (cgc-try $args)]
+  [(= $op "throw")   (str "(fl_throw(" (cgc (get $args 0)) "), fl_nil())")]
   [(= $op "cond")   (cgc-cond $args)]
   [(= $op "do")     (cgc-do $args)]
   [(= $op "let")    (cgc-let $args)]
@@ -1100,9 +1148,9 @@
            [$user-cn (user-c-name $op)]]
        (if (cgc-user-defn? $op)
          (str $user-cn "(" (cgc-args $args) ")")
-         (if (includes-item @known-user-globals-atom $user-cn)
+         (if (includes-item (deref known-user-globals-atom) $user-cn)
            (cgc-fncall $user-cn $args)
-           (if (or (includes-item @known-fncall-targets-atom $cn)
+           (if (or (includes-item (deref known-fncall-targets-atom) $cn)
                    (cgc-runtime-value-callable? $cn))
              (cgc-fncall $cn $args)
              (str $cn "(" (cgc-args $args) ")")))))]))
@@ -1170,12 +1218,12 @@
           $acc)))))
 
 (defn cgc-fn [$args]
-  (let [[$id @lambda-id-atom]
+  (let [[$id (deref lambda-id-atom)]
         [$param-items (get-block-items (get $args 0))]
         [$param-names (cgc-fn-param-names $param-items 0 [])]
         [$body-node (get $args 1)]
         [$all-vars (cgc-collect-vars $body-node [])]
-        [$outer @outer-params-atom]
+        [$outer (deref outer-params-atom)]
         [$caps (cgc-fn-caps-filter $all-vars $param-names $outer 0 [])]
         [$nenv (length $caps)]
         [$env-decls (cgc-fn-env-decls $caps 0 "")]
@@ -1310,12 +1358,12 @@
         (str "FLValue " $name "(" $ps ") {\n    return " $body ";\n}")))))
 
 (defn cgc-defn [$args]
-  (let [[$depth @cgc-defn-depth-atom]
-        [$saved-params @outer-params-atom]]
+  (let [[$depth (deref cgc-defn-depth-atom)]
+        [$saved-params (deref outer-params-atom)]]
     (fl_heap_retain $saved-params)
-    (reset! cgc-defn-depth-atom (+ @cgc-defn-depth-atom 1))
+    (reset! cgc-defn-depth-atom (+ (deref cgc-defn-depth-atom) 1))
     (let [[$result (cgc-defn-impl $args)]]
-      (reset! cgc-defn-depth-atom (- @cgc-defn-depth-atom 1))
+      (reset! cgc-defn-depth-atom (- (deref cgc-defn-depth-atom) 1))
       (reset! outer-params-atom $saved-params)
       (fl_heap_release $saved-params)
       (if (> $depth 0)
@@ -1325,7 +1373,7 @@
           (swap! cgc-hoisted-fns-atom push $result)
           (swap! known-defns-atom push $name)
           (reset! cgc-hoisted-fwds-atom
-            (str @cgc-hoisted-fwds-atom
+            (str (deref cgc-hoisted-fwds-atom)
                  "FLValue " $name "(" $ps ");\n"
                  "static FLValue __fl_wrap_" $name "(FLClosure*, int, FLValue*);\n"))
           "fl_nil()")
@@ -1436,7 +1484,7 @@
       (str $acc "static FLValue __fl_anon_" $i "(FLClosure*, int, FLValue*);\n")))))
 
 (defn cgc-lambda-fwds []
-  (cgc-lambda-fwd-loop @lambda-defs-atom 0 ""))
+  (cgc-lambda-fwd-loop (deref lambda-defs-atom) 0 ""))
 
 ;; S19: lambda 정의 목록 이어붙이기
 (defn cgc-join-lambda-loop [$_defs $_i $_acc]
@@ -1445,19 +1493,19 @@
     (recur (+ $i 1) (str $acc (get $_defs $i) "\n\n")))))
 
 (defn cgc-join-lambdas []
-  (cgc-join-lambda-loop @lambda-defs-atom 0 ""))
+  (cgc-join-lambda-loop (deref lambda-defs-atom) 0 ""))
 
 ;; S24: wrapper 구현 목록 이어붙이기
 (defn cgc-join-wrappers []
-  (cgc-join-lambda-loop @wrapper-defs-atom 0 ""))
+  (cgc-join-lambda-loop (deref wrapper-defs-atom) 0 ""))
 
 ;; S24: global define 선언 목록 이어붙이기
 (defn cgc-join-globals []
-  (cgc-join-lambda-loop @global-decls-atom 0 ""))
+  (cgc-join-lambda-loop (deref global-decls-atom) 0 ""))
 
 ;; bug4: hoisted nested defn 목록 이어붙이기
 (defn cgc-join-hoisted []
-  (cgc-join-lambda-loop @cgc-hoisted-fns-atom 0 ""))
+  (cgc-join-lambda-loop (deref cgc-hoisted-fns-atom) 0 ""))
 
 (defn generate-c [$nodes]
   (let [[$fwd (cgc-forward-decls $nodes)]
@@ -1468,7 +1516,7 @@
         [$lfwd (cgc-lambda-fwds)]
         [$ldefs (cgc-join-lambdas)]
         [$wdefs (cgc-join-wrappers)]
-        [$hfwd @cgc-hoisted-fwds-atom]
+        [$hfwd (deref cgc-hoisted-fwds-atom)]
         [$hfns (cgc-join-hoisted)]]
   (str
     "#include \"runtime.h\"\n"
