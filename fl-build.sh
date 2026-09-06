@@ -425,6 +425,7 @@ else
 fi
 
 CORE_SRCS="$RUNTIME_DIR/core.c $RUNTIME_DIR/collection.c $RUNTIME_DIR/io.c \
+  $RUNTIME_DIR/async.c \
   $RUNTIME_DIR/json.c $RUNTIME_DIR/math.c $RUNTIME_DIR/process.c \
   $RUNTIME_DIR/error.c $NET_SRCS $RUNTIME_DIR/aliases.c \
   $RUNTIME_DIR/sqlite.c $RUNTIME_DIR/debug.c $RUNTIME_DIR/gc.c \

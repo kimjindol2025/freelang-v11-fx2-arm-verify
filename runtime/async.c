@@ -1,0 +1,22 @@
+#define _GNU_SOURCE
+#include "runtime.h"
+#include <pthread.h>
+#include <stdlib.h>
+#include <time.h>
+#include <errno.h>
+
+typedef enum { FL_ASYNC_READ, FL_ASYNC_WRITE, FL_ASYNC_SLEEP, FL_ASYNC_HTTP_GET, FL_ASYNC_HTTP_POST } FLAsyncOp;
+typedef struct { FLAsyncOp op; FLValue path, content, headers, result; pthread_t thread; pthread_mutex_t mu; pthread_cond_t cv; int done, cancelled, joined; } FLAsyncTask;
+
+static FLValue async_packet(const char *status, FLValue value, const char *type, const char *code) { FLValue m=fl_map_new(); m=fl_map_set(m,fl_str_val("status"),fl_str_val(status)); m=fl_map_set(m,fl_str_val("value"),value); m=fl_map_set(m,fl_str_val("errorType"),type?fl_str_val(type):fl_nil()); return fl_map_set(m,fl_str_val("code"),code?fl_str_val(code):fl_nil()); }
+static void *async_worker(void *arg) { FLAsyncTask *t=arg; FLValue r; if(t->op==FL_ASYNC_READ) r=fl_file_read(t->path); else if(t->op==FL_ASYNC_WRITE) r=fl_file_write(t->path,t->content); else if(t->op==FL_ASYNC_HTTP_GET) r=http_get_h(t->path,t->headers); else if(t->op==FL_ASYNC_HTTP_POST) r=http_post_h(t->path,t->content,t->headers); else { struct timespec ts={.tv_sec=t->content.i/1000,.tv_nsec=(t->content.i%1000)*1000000L}; nanosleep(&ts,NULL); r=fl_bool(true); } pthread_mutex_lock(&t->mu); t->result=r; t->done=1; pthread_cond_broadcast(&t->cv); pthread_mutex_unlock(&t->mu); return NULL; }
+static FLValue async_start(FLAsyncOp op, FLValue path, FLValue content, FLValue headers) { if(path.tag!=FL_STRING||fl_string_has_embedded_nul(path))return fl_nil(); FLAsyncTask*t=calloc(1,sizeof(*t)); if(!t)return fl_nil(); t->op=op;t->path=fl_heap_copy(path);t->content=content.tag==FL_NIL?fl_nil():fl_heap_copy(content);t->headers=headers.tag==FL_NIL?fl_nil():fl_heap_copy(headers);pthread_mutex_init(&t->mu,NULL);pthread_cond_init(&t->cv,NULL);if(pthread_create(&t->thread,NULL,async_worker,t)!=0){pthread_cond_destroy(&t->cv);pthread_mutex_destroy(&t->mu);fl_heap_release(t->path);if(t->content.tag!=FL_NIL)fl_heap_release(t->content);if(t->headers.tag!=FL_NIL)fl_heap_release(t->headers);free(t);return fl_nil();}FLValue h=fl_map_new();return fl_map_set(h,fl_str_val("__async_task__"),fl_int((int64_t)(uintptr_t)t)); }
+static FLAsyncTask *async_task(FLValue h){if(h.tag!=FL_MAP)return NULL;FLValue p=fl_map_get(h,fl_str_val("__async_task__"));return p.tag==FL_INT?(FLAsyncTask*)(uintptr_t)p.i:NULL;}
+FLValue fl_async_file_read(FLValue p){return async_start(FL_ASYNC_READ,p,fl_nil(),fl_nil());}
+FLValue fl_async_file_write(FLValue p,FLValue c){return async_start(FL_ASYNC_WRITE,p,c,fl_nil());}
+FLValue fl_async_sleep(FLValue ms){return async_start(FL_ASYNC_SLEEP,fl_str_val(""),ms,fl_nil());}
+FLValue fl_async_http_get(FLValue url,FLValue headers){return async_start(FL_ASYNC_HTTP_GET,url,fl_nil(),headers);}
+FLValue fl_async_http_post(FLValue url,FLValue body,FLValue headers){return async_start(FL_ASYNC_HTTP_POST,url,body,headers);}
+FLValue fl_async_await(FLValue h,FLValue mv){FLAsyncTask*t=async_task(h);if(!t)return async_packet("error",fl_nil(),"AsyncIOError","E_ASYNC_IO");int64_t ms=mv.tag==FL_INT?mv.i:30000;struct timespec d;clock_gettime(CLOCK_REALTIME,&d);d.tv_sec+=ms/1000;d.tv_nsec+=(ms%1000)*1000000L;if(d.tv_nsec>=1000000000L){d.tv_sec++;d.tv_nsec-=1000000000L;}pthread_mutex_lock(&t->mu);while(!t->done&&!t->cancelled)if(pthread_cond_timedwait(&t->cv,&t->mu,&d)==ETIMEDOUT){pthread_mutex_unlock(&t->mu);return async_packet("error",fl_nil(),"AsyncTimeoutError","E_ASYNC_TIMEOUT");}if(t->cancelled){pthread_mutex_unlock(&t->mu);return async_packet("error",fl_nil(),"AsyncCancelledError","E_ASYNC_CANCELLED");}FLValue r=t->op==FL_ASYNC_WRITE?fl_bool(true):t->result;int ok=t->op==FL_ASYNC_WRITE||r.tag!=FL_NIL;if((t->op==FL_ASYNC_HTTP_GET||t->op==FL_ASYNC_HTTP_POST)&&r.tag==FL_MAP&&fl_map_get(r,fl_str_val("error")).tag!=FL_NIL)ok=0;pthread_mutex_unlock(&t->mu);return ok?async_packet("ok",r,NULL,NULL):async_packet("error",fl_nil(),"AsyncIOError","E_ASYNC_IO");}
+FLValue fl_async_cancel(FLValue h){FLAsyncTask*t=async_task(h);if(!t)return fl_bool(false);pthread_mutex_lock(&t->mu);t->cancelled=1;pthread_cond_broadcast(&t->cv);pthread_mutex_unlock(&t->mu);return fl_bool(true);}
+FLValue fl_async_release(FLValue h){FLAsyncTask*t=async_task(h);if(!t||t->joined)return fl_bool(false);pthread_join(t->thread,NULL);t->joined=1;pthread_cond_destroy(&t->cv);pthread_mutex_destroy(&t->mu);fl_heap_release(t->path);if(t->content.tag!=FL_NIL)fl_heap_release(t->content);if(t->headers.tag!=FL_NIL)fl_heap_release(t->headers);free(t);return fl_bool(true);}
