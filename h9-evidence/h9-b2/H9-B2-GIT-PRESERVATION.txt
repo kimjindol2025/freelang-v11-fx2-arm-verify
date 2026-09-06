@@ -1,0 +1,8 @@
+ARTIFACT=H9-B2-verification-bundle.tar.gz
+SOURCE_EVIDENCE_ROOT=/root/h9-evidence/h9-b2/verification-bundle/
+ARCHIVE_SHA256=0fad6497e72a89573e07cb6b6efa7526a17c0e92a1752343e25f432d6a07b965
+ARCHIVE_SIZE_BYTES=approximately 24K
+PRESERVATION_MODE=git-tracked-additive-artifact
+H9_B2_CLOSED=NO
+NORMAL_HOST_EXECUTION=NOT_RUN
+NOTE=Archive is a verification bundle, not a runtime build output; existing user changes remain unstaged.
