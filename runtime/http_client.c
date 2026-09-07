@@ -200,7 +200,7 @@ FLValue http_get(FLValue url_v) {
 }
 
 /* http_get_h url headers-map */
-FLValue http_get_h(FLValue url_v, FLValue hdrs_v) {
+FLValue http_get_h(FLValue url_v, FLValue hdrs_v) { const char *dependency_failure = getenv("FREELANG_ASYNC_DEPENDENCY_FAILURE"); if (dependency_failure && strcmp(dependency_failure, "1") == 0) { FLValue result = fl_map_new(); result = fl_map_set(result, fl_str_val("error"), fl_str_val("injected dependency failure")); result = fl_map_set(result, fl_str_val("errorType"), fl_str_val("AsyncDependencyError")); return fl_map_set(result, fl_str_val("code"), fl_str_val("E_ASYNC_DEPENDENCY")); }
     if (url_v.tag != FL_STRING) return fl_map_set(fl_map_new(),
         fl_str_val("error"), fl_str_val("url must be string"));
     return fx_http_exec("GET", ((FLString*)url_v.obj)->data, NULL, hdrs_v);

@@ -5,6 +5,8 @@
 #include <time.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 typedef enum { FL_ASYNC_READ, FL_ASYNC_WRITE, FL_ASYNC_SLEEP, FL_ASYNC_HTTP_GET, FL_ASYNC_HTTP_POST } FLAsyncOp;
 typedef enum { FL_ASYNC_PENDING, FL_ASYNC_SUCCESS, FL_ASYNC_ERROR, FL_ASYNC_TIMEOUT, FL_ASYNC_CANCELLED } FLAsyncTerminal;
@@ -15,7 +17,9 @@ typedef struct FLAsyncTask {
     pthread_t thread;
     pthread_mutex_t mu;
     pthread_cond_t cv;
-    int callback_registered, callback_dispatched, joined;
+    int callback_registered, callback_dispatched, callback_completed, callback_failed, joined;
+    char callback_error_type[64];
+    char callback_error_message[256];
     uint64_t id;
     struct FLAsyncTask *next;
 } FLAsyncTask;
@@ -42,7 +46,7 @@ static FLValue async_terminal_packet_locked(FLAsyncTask *t) {
     case FL_ASYNC_SUCCESS: return async_packet("ok", t->op == FL_ASYNC_WRITE ? fl_bool(true) : t->result, NULL, NULL);
     case FL_ASYNC_TIMEOUT: return async_packet("error", fl_nil(), "AsyncTimeoutError", "E_ASYNC_TIMEOUT");
     case FL_ASYNC_CANCELLED: return async_packet("error", fl_nil(), "AsyncCancelledError", "E_ASYNC_CANCELLED");
-    case FL_ASYNC_ERROR: return async_packet("error", fl_nil(), "AsyncIOError", "E_ASYNC_IO");
+    case FL_ASYNC_ERROR: { const char *type = "AsyncIOError", *code = "E_ASYNC_IO"; if (t->result.tag == FL_MAP) { FLValue et = fl_map_get(t->result, fl_str_val("errorType")); FLValue ec = fl_map_get(t->result, fl_str_val("code")); if (et.tag == FL_STRING && et.obj) type = ((FLString *)et.obj)->data; if (ec.tag == FL_STRING && ec.obj) code = ((FLString *)ec.obj)->data; } return async_packet("error", fl_nil(), type, code); }
     case FL_ASYNC_PENDING: break;
     }
     return async_packet("error", fl_nil(), "AsyncIOError", "E_ASYNC_IO");
@@ -55,7 +59,7 @@ static void async_dispatch_callback(FLAsyncTask *t) {
         packet=async_terminal_packet_locked(t);
     }
     pthread_mutex_unlock(&t->mu);
-    if (callback.tag == FL_FN) { (void)fl_fn_call(callback,1,&packet); fl_heap_release(callback); }
+    if (callback.tag == FL_FN) { FLValue callback_result = fl_fn_call(callback,1,&packet); int failed = 0; if (callback_result.tag == FL_MAP) { FLValue type = fl_map_get(callback_result, fl_str_val("type")); FLValue error = fl_map_get(callback_result, fl_str_val("error")); failed = (type.tag == FL_STRING || error.tag != FL_NIL); } if (failed) { pthread_mutex_lock(&t->mu); if (!t->callback_failed) { FLValue type = fl_map_get(callback_result, fl_str_val("type")); FLValue message = fl_map_get(callback_result, fl_str_val("message")); snprintf(t->callback_error_type, sizeof(t->callback_error_type), "%s", type.tag == FL_STRING && type.obj ? ((FLString *)type.obj)->data : "AsyncCallbackError"); snprintf(t->callback_error_message, sizeof(t->callback_error_message), "%s", message.tag == FL_STRING && message.obj ? ((FLString *)message.obj)->data : "callback reported error"); t->callback_failed = 1; } pthread_mutex_unlock(&t->mu); fl_heap_release(callback_result); } pthread_mutex_lock(&t->mu); t->callback_completed = 1; pthread_cond_broadcast(&t->cv); pthread_mutex_unlock(&t->mu); fl_heap_release(callback); }
 }
 static int async_claim_terminal(FLAsyncTask *t, FLAsyncTerminal terminal, FLValue result) {
     int claimed=0;
@@ -113,6 +117,7 @@ FLValue fl_async_set_callback(FLValue h,FLValue callback){
     pthread_mutex_lock(&t->mu); if(t->callback_registered){pthread_mutex_unlock(&t->mu);pthread_mutex_unlock(&async_handle_mu);return fl_bool(false);}
     t->callback=fl_heap_copy(callback); t->callback_registered=1; pthread_mutex_unlock(&t->mu); async_dispatch_callback(t); pthread_mutex_unlock(&async_handle_mu); return fl_bool(true);
 }
+FLValue fl_async_callback_error(FLValue h){ pthread_mutex_lock(&async_handle_mu); FLAsyncTask*t=async_task(h); if(!t){pthread_mutex_unlock(&async_handle_mu);return fl_nil();} pthread_mutex_lock(&t->mu); while (t->terminal == FL_ASYNC_PENDING || (t->callback_registered && !t->callback_completed)) pthread_cond_wait(&t->cv, &t->mu); FLValue result=t->callback_failed?fl_make_error(t->callback_error_type, t->callback_error_message):fl_nil(); pthread_mutex_unlock(&t->mu); pthread_mutex_unlock(&async_handle_mu); return result;}
 FLValue fl_async_release(FLValue h){
     pthread_mutex_lock(&async_handle_mu); FLAsyncTask*t=async_task(h); if(!t||t->joined){pthread_mutex_unlock(&async_handle_mu);return fl_bool(false);}
     t->joined=1; pthread_join(t->thread,NULL);

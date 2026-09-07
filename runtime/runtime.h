@@ -214,6 +214,7 @@ FLValue fl_async_http_post(FLValue url, FLValue body, FLValue headers);
 FLValue fl_async_await(FLValue handle, FLValue timeout_ms);
 FLValue fl_async_cancel(FLValue handle);
 FLValue fl_async_set_callback(FLValue handle, FLValue callback);
+FLValue fl_async_callback_error(FLValue handle);
 FLValue fl_async_release(FLValue handle);
 FLValue fl_sleep_ms(FLValue ms_v);
 FLValue fl_none_p(FLValue fn, FLValue vec);
