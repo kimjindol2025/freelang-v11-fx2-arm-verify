@@ -28,6 +28,16 @@ static pthread_mutex_t async_handle_mu = PTHREAD_MUTEX_INITIALIZER;
 static FLAsyncTask *async_registry = NULL;
 static uint64_t async_next_id = 1;
 
+static void async_destroy_task(FLAsyncTask *t) {
+    pthread_cond_destroy(&t->cv);
+    pthread_mutex_destroy(&t->mu);
+    fl_heap_release(t->path);
+    if (t->content.tag != FL_NIL) fl_heap_release(t->content);
+    if (t->headers.tag != FL_NIL) fl_heap_release(t->headers);
+    if (t->callback.tag != FL_NIL) fl_heap_release(t->callback);
+    free(t);
+}
+
 static FLValue async_packet(const char *status, FLValue value, const char *type, const char *code) {
     FLValue m=fl_map_new();
     m=fl_map_set(m,fl_str_val("status"),fl_str_val(status));
@@ -91,8 +101,7 @@ static FLValue async_start(FLAsyncOp op, FLValue path, FLValue content, FLValue 
     pthread_mutex_lock(&async_handle_mu); t->id=async_next_id++; t->next=async_registry; async_registry=t; pthread_mutex_unlock(&async_handle_mu);
     if(pthread_create(&t->thread,NULL,async_worker,t)!=0){
         pthread_mutex_lock(&async_handle_mu); if(async_registry==t) async_registry=t->next; else { FLAsyncTask *p=async_registry; while(p&&p->next!=t)p=p->next; if(p)p->next=t->next; } pthread_mutex_unlock(&async_handle_mu);
-        pthread_cond_destroy(&t->cv); pthread_mutex_destroy(&t->mu); fl_heap_release(t->path);
-        if(t->content.tag!=FL_NIL)fl_heap_release(t->content); if(t->headers.tag!=FL_NIL)fl_heap_release(t->headers); free(t); return fl_nil();
+        async_destroy_task(t); return fl_nil();
     }
     FLValue h=fl_map_new(); return fl_map_set(h,fl_str_val("__async_task__"),fl_int((int64_t)t->id));
 }
@@ -122,4 +131,18 @@ FLValue fl_async_release(FLValue h){
     pthread_mutex_lock(&async_handle_mu); FLAsyncTask*t=async_task(h); if(!t||t->joined){pthread_mutex_unlock(&async_handle_mu);return fl_bool(false);}
     t->joined=1; pthread_join(t->thread,NULL);
     FLAsyncTask **pp=&async_registry; while(*pp&&*pp!=t)pp=&(*pp)->next; if(*pp==t)*pp=t->next;
-    pthread_cond_destroy(&t->cv); pthread_mutex_destroy(&t->mu); fl_heap_release(t->path); if(t->content.tag!=FL_NIL)fl_heap_release(t->content); if(t->headers.tag!=FL_NIL)fl_heap_release(t->headers); if(t->callback.tag!=FL_NIL)fl_heap_release(t->callback); free(t); pthread_mutex_unlock(&async_handle_mu); return fl_bool(true);}
+    async_destroy_task(t); pthread_mutex_unlock(&async_handle_mu); return fl_bool(true);}
+
+void fl_async_runtime_shutdown(void) {
+    pthread_mutex_lock(&async_handle_mu);
+    FLAsyncTask *tasks = async_registry;
+    async_registry = NULL;
+    pthread_mutex_unlock(&async_handle_mu);
+    while (tasks) {
+        FLAsyncTask *next = tasks->next;
+        tasks->joined = 1;
+        pthread_join(tasks->thread, NULL);
+        async_destroy_task(tasks);
+        tasks = next;
+    }
+}

@@ -215,6 +215,7 @@ void fl_perm_cleanup(void) {
 /* Call only after application work and worker shutdown are complete.  It is
  * idempotent and is also registered automatically for normal process exit. */
 void fl_runtime_shutdown(void) {
+    fl_async_runtime_shutdown();
     fl_perm_cleanup();
     fl_arena_cleanup();
 }

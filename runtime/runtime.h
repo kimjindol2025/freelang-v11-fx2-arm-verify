@@ -216,6 +216,7 @@ FLValue fl_async_cancel(FLValue handle);
 FLValue fl_async_set_callback(FLValue handle, FLValue callback);
 FLValue fl_async_callback_error(FLValue handle);
 FLValue fl_async_release(FLValue handle);
+void    fl_async_runtime_shutdown(void);
 FLValue fl_sleep_ms(FLValue ms_v);
 FLValue fl_none_p(FLValue fn, FLValue vec);
 FLValue fl_count_if(FLValue fn, FLValue vec);
