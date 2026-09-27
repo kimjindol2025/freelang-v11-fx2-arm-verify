@@ -211,6 +211,7 @@ if [ -z "$CGC_BIN" ]; then
   echo "   환경변수 CGC_BIN을 지정해서 다시 시도하세요."
   exit 1
 fi
+CGC_HASH="$(sha256sum "$CGC_BIN" 2>/dev/null | cut -d' ' -f1)"
 
 # 플래그 파싱
 NO_NET=0
@@ -474,7 +475,7 @@ mkdir -p "$APP_OBJ_DIR"
 OUTPUT_BASE="$(basename "$OUTPUT")"
 APP_O="$APP_OBJ_DIR/${OUTPUT_BASE}.o"
 APP_HASH_FILE="$APP_OBJ_DIR/${OUTPUT_BASE}.hash"
-APP_HASH=$(md5sum "$PREPROCESSED" 2>/dev/null | cut -d' ' -f1)
+APP_HASH=$( { md5sum "$PREPROCESSED" 2>/dev/null; printf '%s\n' "$CGC_HASH"; md5sum "$RUNTIME_DIR/runtime.h" 2>/dev/null; } | md5sum | cut -d' ' -f1 )
 
 if [ ! -f "$APP_O" ] || [ "$(cat "$APP_HASH_FILE" 2>/dev/null)" != "${APP_HASH}_${NO_NET}" ]; then
   echo "   🔧 app.o 컴파일 중..."

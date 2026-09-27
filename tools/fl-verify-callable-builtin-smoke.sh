@@ -27,8 +27,8 @@ echo "[1/4] registry + user-fns regeneration check via fl-pkg-gen-c"
 bash "$ROOT_DIR/fl-pkg-gen-c" "$BUILD_TREE" >"$PKG_JSON_FILE"
 cat "$PKG_JSON_FILE"
 
-PKG_COUNT="$(sed -n 's/.*"count":\([0-9][0-9]*\).*//p' "$PKG_JSON_FILE")"
-PKG_MISSING_RAW="$(sed -n 's/.*"missing":\[\([^]]*\)\].*//p' "$PKG_JSON_FILE" | tr -d ' "')"
+PKG_COUNT="$(sed -n 's/.*"count":\([0-9][0-9]*\).*/\1/p' "$PKG_JSON_FILE")"
+PKG_MISSING_RAW="$(sed -n 's/.*"missing":\[\([^]]*\)\].*/\1/p' "$PKG_JSON_FILE" | tr -d ' "')"
 if [ -z "$PKG_MISSING_RAW" ]; then
   PKG_MISSING_COUNT=0
 else
