@@ -25,7 +25,7 @@ command -v "$CC_BIN" >/dev/null || {
 
 sources=(
   runtime/test_runtime.c
-  runtime/aliases.c runtime/builtins-shim.c runtime/collection.c
+  runtime/aliases.c runtime/async.c runtime/builtins-shim.c runtime/collection.c
   runtime/core.c runtime/debug.c runtime/error.c runtime/fx-builtin-shim.c
   runtime/gc.c runtime/http.c runtime/http_client.c runtime/io.c
   runtime/jit.c runtime/json.c runtime/mariadb.c runtime/math.c
