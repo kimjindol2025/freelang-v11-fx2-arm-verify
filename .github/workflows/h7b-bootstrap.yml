@@ -46,15 +46,15 @@ jobs:
             echo "BUILD_ID_POLICY=DEFAULT_GNU_LINKER_BUILD_ID"
             echo "COMPILE_FLAGS=-ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical"
             echo "LINK_FLAGS=-Wl,--gc-sections"
-            echo "RUNTIME_CLOSURE=core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
-            echo "OBJECT_ORDER=generated_compiler_then_core_collection_io_math_error_process_json_gc_aliases_debug_cgc-bridge"
+            echo "RUNTIME_CLOSURE=core_collection_io_math_error_process_json_gc_async_aliases_debug_cgc-bridge"
+            echo "OBJECT_ORDER=generated_compiler_then_core_collection_io_math_error_process_json_gc_async_aliases_debug_cgc-bridge"
             echo "WORKING_DIRECTORY_INDEPENDENCE=independent_build-A_and_build-B_paths_canonicalized_only_at_debug_file_macro_metadata_layer"
             echo "ENVIRONMENT_POLICY=no_SOURCE_DATE_EPOCH_no_build_id_override_no_strip"
             echo "COMMAND_RECORD=GitHub_Actions_set-x_raw_log_and_this_workflow"
             echo "PURPOSE=preserve_debug_info_while_canonicalizing_independent_build_source_paths"
           } > "$E/canonical-build-contract.txt"
           test "$(uname -m)" = "${{ matrix.expected }}"
-          modules="core collection io math error process json gc aliases debug cgc-bridge"
+          modules="core collection io math error process json gc async aliases debug cgc-bridge"
           printf '%s\n' $modules > "$E/runtime-closure.txt"
           for src in $modules; do
             gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -ffile-prefix-map=build-A=canonical -ffile-prefix-map=build-B=canonical -I runtime \
@@ -70,7 +70,7 @@ jobs:
             gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$output" \
               "$D/$(basename "$output").o" \
               "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" "$D/error.o" \
-              "$D/process.o" "$D/json.o" "$D/gc.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+              "$D/process.o" "$D/json.o" "$D/gc.o" "$D/async.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
               -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 >> "$log" 2>&1
           }
           build_native target-gen1.c stage1/cgc-bin "$E/stage1.log"

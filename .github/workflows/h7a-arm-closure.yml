@@ -27,8 +27,8 @@ jobs:
           git rev-parse HEAD > "$E/git-head.txt"
           sha256sum target-gen1.c self/cgc-main.fl scripts/build-cgc-native.sh > "$E/source-sha256.txt"
           test "$(uname -m)" = aarch64
-          printf '%s\n' core collection io math error process json gc aliases debug cgc-bridge > "$E/runtime-closure.txt"
-          for src in core collection io math error process json gc aliases debug cgc-bridge; do
+          printf '%s\n' core collection io math error process json gc async aliases debug cgc-bridge > "$E/runtime-closure.txt"
+          for src in core collection io math error process json gc async aliases debug cgc-bridge; do
             gcc -D_GNU_SOURCE -g -O0 -fno-omit-frame-pointer -ffunction-sections -fdata-sections -I runtime \
               -c "runtime/$src.c" -o "$D/$src.o" >> "$E/stage1-build.log" 2>&1
           done
@@ -36,7 +36,7 @@ jobs:
             -c target-gen1.c -o "$D/target-gen1.o" >> "$E/stage1-build.log" 2>&1
           gcc -g -O0 -fno-omit-frame-pointer -Wl,--gc-sections -o "$E/stage1-bin" \
             "$D/target-gen1.o" "$D/core.o" "$D/collection.o" "$D/io.o" "$D/math.o" \
-            "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
+            "$D/error.o" "$D/process.o" "$D/json.o" "$D/gc.o" "$D/async.o" "$D/aliases.o" "$D/debug.o" "$D/cgc-bridge.o" \
             -lm -ldl -lpthread -lcrypto -lssl -lcurl -lsqlite3 >> "$E/stage1-build.log" 2>&1
           test -s "$E/stage1-bin"
           file "$E/stage1-bin" | tee "$E/stage1-binary.txt"
