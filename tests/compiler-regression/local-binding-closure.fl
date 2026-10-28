@@ -1,0 +1,28 @@
+(defn check-local-values []
+  (let [$number 41]
+    (let [$text "local"]
+      (let [$flag true]
+        (let [$fd (fxb-net-listen-address "127.0.0.1" 0)]
+          (let [$future (fl-future (fn [] (+ $number 1)))]
+            (fxb-net-close $fd)
+            (and (= (+ $number 1) 42)
+                 (= $text "local")
+                 (= $flag true)
+                 (= (fl-deref $future) 42)
+                 (> $fd 0))))))))
+
+(defn make-nested [$base]
+  (fn [$exp]
+    (fn [$mul] (* (pow $base $exp) $mul))))
+
+(defn pow [$b $e]
+  (if (<= $e 0) 1 (* $b (pow $b (- $e 1)))))
+
+(defn check-closure []
+  (let [[$f (make-nested 2)]
+        [$g ($f 3)]]
+    (= ($g 10) 80)))
+
+(if (and (check-local-values) (check-closure))
+  (println "local-binding-closure PASS")
+  (println "local-binding-closure FAIL"))

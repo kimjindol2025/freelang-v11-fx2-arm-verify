@@ -1,0 +1,702 @@
+{
+  "project": "ai-native-afj-api-smoke",
+  "generated_at": "2026-08-21T11:21:33.783Z",
+  "checks": {
+    "project": {
+      "name": "project",
+      "required": true,
+      "status": "PASS",
+      "command": "project manifest discovery",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "reason": "project context loaded",
+      "evidence": [
+        {
+          "source": "manifest",
+          "project": "ai-native-afj-api-smoke"
+        }
+      ]
+    },
+    "syntax": {
+      "name": "syntax",
+      "required": true,
+      "status": "PASS",
+      "command": "node ../../../freelang-v11/bootstrap.js check app.fl",
+      "exit_code": 0,
+      "duration_ms": 370,
+      "reason": "command executed",
+      "evidence": [
+        {
+          "command": "node ../../../freelang-v11/bootstrap.js check app.fl",
+          "status": "PASS",
+          "exit_code": 0,
+          "stdout": "\u001b[32m✓\u001b[0m  app.fl  문법 이상 없음\n\u001b[36m[type-check]\u001b[0m  app.fl  타입 이상 없음 (함수 7개 분석)",
+          "stderr": "\u001b[33m[meta-check]\u001b[0m  app.fl — 7개 함수에 메타 없음\n  \u001b[33m⚠\u001b[0m  line 4: \u001b[1mdb-append\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 10: \u001b[1mdb-read\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 15: \u001b[1mfront-page\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 18: \u001b[1mhandle-front\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 21: \u001b[1mhandle-health\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 24: \u001b[1mhandle-create\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 37: \u001b[1mhandle-get\u001b[0m — :context/:returns 없음\n\u001b[2m  팁: (defn db-append [...] {:context \"...\" :returns \"...\"} ...)\u001b[0m",
+          "captured_at": "2026-08-21T11:21:20.496Z"
+        }
+      ],
+      "stdout": "\u001b[32m✓\u001b[0m  app.fl  문법 이상 없음\n\u001b[36m[type-check]\u001b[0m  app.fl  타입 이상 없음 (함수 7개 분석)",
+      "stderr": "\u001b[33m[meta-check]\u001b[0m  app.fl — 7개 함수에 메타 없음\n  \u001b[33m⚠\u001b[0m  line 4: \u001b[1mdb-append\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 10: \u001b[1mdb-read\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 15: \u001b[1mfront-page\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 18: \u001b[1mhandle-front\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 21: \u001b[1mhandle-health\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 24: \u001b[1mhandle-create\u001b[0m — :context/:returns 없음\n  \u001b[33m⚠\u001b[0m  line 37: \u001b[1mhandle-get\u001b[0m — :context/:returns 없음\n\u001b[2m  팁: (defn db-append [...] {:context \"...\" :returns \"...\"} ...)\u001b[0m",
+      "error_code": null,
+      "message": null
+    },
+    "type": {
+      "name": "type",
+      "required": true,
+      "status": "PASS",
+      "command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-type --check >/tmp/fl-afj-api-type.log 2>&1",
+      "exit_code": 0,
+      "duration_ms": 108,
+      "reason": "command executed",
+      "evidence": [
+        {
+          "command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-type --check >/tmp/fl-afj-api-type.log 2>&1",
+          "status": "PASS",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:20.605Z"
+        }
+      ],
+      "stdout": "",
+      "stderr": "",
+      "error_code": null,
+      "message": null
+    },
+    "interpreter": {
+      "name": "interpreter",
+      "required": true,
+      "status": "PASS",
+      "command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run app.fl",
+      "exit_code": 0,
+      "duration_ms": 418,
+      "reason": "command executed",
+      "evidence": [
+        {
+          "command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run app.fl",
+          "status": "PASS",
+          "exit_code": 0,
+          "stdout": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+          "stderr": "\u001b[2m💡  개발 중에는: freelang watch app.fl\u001b[0m",
+          "captured_at": "2026-08-21T11:21:21.023Z"
+        }
+      ],
+      "stdout": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+      "stderr": "\u001b[2m💡  개발 중에는: freelang watch app.fl\u001b[0m",
+      "error_code": null,
+      "message": null
+    },
+    "native": {
+      "name": "native",
+      "required": true,
+      "status": "PASS",
+      "command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-native >/tmp/fl-afj-api-native.log 2>&1 && /tmp/fl-afj-api-native",
+      "exit_code": 0,
+      "duration_ms": 1125,
+      "reason": "command executed",
+      "evidence": [
+        {
+          "command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-native >/tmp/fl-afj-api-native.log 2>&1 && /tmp/fl-afj-api-native",
+          "status": "PASS",
+          "exit_code": 0,
+          "stdout": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+          "stderr": "[http] 핸들러 'handle-front' (handle_front) 를 찾을 수 없음\n[http] 핸들러 'handle-health' (handle_health) 를 찾을 수 없음\n[http] 핸들러 'handle-create' (handle_create) 를 찾을 수 없음\n[http] 핸들러 'handle-get' (handle_get) 를 찾을 수 없음",
+          "captured_at": "2026-08-21T11:21:22.148Z"
+        }
+      ],
+      "stdout": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+      "stderr": "[http] 핸들러 'handle-front' (handle_front) 를 찾을 수 없음\n[http] 핸들러 'handle-health' (handle_health) 를 찾을 수 없음\n[http] 핸들러 'handle-create' (handle_create) 를 찾을 수 없음\n[http] 핸들러 'handle-get' (handle_get) 를 찾을 수 없음",
+      "error_code": null,
+      "message": null
+    },
+    "parity": {
+      "name": "parity",
+      "required": true,
+      "status": "PASS",
+      "command": "configured parity cases",
+      "exit_code": 0,
+      "duration_ms": 1695,
+      "reason": "all configured parity cases passed",
+      "cases": 1,
+      "passed": 1,
+      "failed": 0,
+      "case": null,
+      "error_code": null,
+      "evidence": [
+        {
+          "name": "api_backend_source",
+          "source": "app.fl",
+          "status": "PASS",
+          "interpreter": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+          "native": "FreeLang AFJ API on port 0\nFreeLang AFJ API check mode",
+          "interpreter_exit_code": 0,
+          "native_exit_code": 0,
+          "interpreter_command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run \"/root/lang/freelang-v11-fx2/tests/ai-native-afj-api-smoke/app.fl\"",
+          "native_command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh \"/root/lang/freelang-v11-fx2/tests/ai-native-afj-api-smoke/app.fl\" \"/tmp/fl-parity-28445-0\" >/tmp/fl-afj-api-parity.log 2>&1 && \"/tmp/fl-parity-28445-0\"",
+          "stderr": "\u001b[2m💡  개발 중에는: freelang watch app.fl\u001b[0m\n[http] 핸들러 'handle-front' (handle_front) 를 찾을 수 없음\n[http] 핸들러 'handle-health' (handle_health) 를 찾을 수 없음\n[http] 핸들러 'handle-create' (handle_create) 를 찾을 수 없음\n[http] 핸들러 'handle-get' (handle_get) 를 찾을 수 없음"
+        }
+      ]
+    },
+    "afj_db": {
+      "name": "afj_db",
+      "required": true,
+      "status": "PASS",
+      "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"build\"",
+      "exit_code": 0,
+      "duration_ms": 3505,
+      "reason": "AFJ DB smoke and integrity checks passed",
+      "connect": "PASS",
+      "write": "PASS",
+      "read": "PASS",
+      "compare": "PASS",
+      "verify": "PASS",
+      "replay": "PASS",
+      "snapshot": "PASS",
+      "restore": "PASS",
+      "cleanup": "PASS",
+      "run_id": "1787311283845-28445",
+      "namespace": "/tmp/fl-verify-afj-db-kllQdf",
+      "endpoint": "/root/lang/afl-db/v2-afj/src/cli.js",
+      "error_code": null,
+      "phase": null,
+      "message": null,
+      "suggestion": null,
+      "evidence": [
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"build\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 690,
+          "stdout": "✓ /root/lang/afl-db/v2-afj/src/afl-db-core.fl — 문제 없음\ncompiled: /root/lang/afl-db/v2-afj/src/afl-db-core.fl.out.js\ncompile_ms: 2.366",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:24.537Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"append\" \"/tmp/fl-verify-afj-db-kllQdf/db\" \"__fl_verify_1787311283845-28445\" \"{\\\"kind\\\":\\\"fl_verify\\\",\\\"run_id\\\":\\\"1787311283845-28445\\\",\\\"value\\\":\\\"BIGWASH-AFJ-VERIFY\\\",\\\"number\\\":12345,\\\"flag\\\":true,\\\"list\\\":[\\\"afj\\\",\\\"verify\\\"]}\" \"1787311284537\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 465,
+          "stdout": "{\"ok\":true,\"event\":{\"seq\":1,\"ts\":1787311284537,\"key\":\"__fl_verify_1787311283845-28445\",\"op\":\"put\",\"value\":{\"kind\":\"fl_verify\",\"run_id\":\"1787311283845-28445\",\"value\":\"BIGWASH-AFJ-VERIFY\",\"number\":12345,\"flag\":true,\"list\":[\"afj\",\"verify\"]},\"prev\":\"GENESIS\",\"hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\"},\"record_count\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"lock_released\":true}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:25.002Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"read-key\" \"/tmp/fl-verify-afj-db-kllQdf/db\" \"__fl_verify_1787311283845-28445\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 455,
+          "stdout": "{\"seq\":1,\"key\":\"__fl_verify_1787311283845-28445\",\"value\":{\"kind\":\"fl_verify\",\"run_id\":\"1787311283845-28445\",\"value\":\"BIGWASH-AFJ-VERIFY\",\"number\":12345,\"flag\":true,\"list\":[\"afj\",\"verify\"]}}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:25.457Z"
+        },
+        {
+          "command": "AFJ DB read value comparison",
+          "status": "PASS",
+          "run_id": "1787311283845-28445",
+          "collection": "/tmp/fl-verify-afj-db-kllQdf/db",
+          "expected": {
+            "kind": "fl_verify",
+            "run_id": "1787311283845-28445",
+            "value": "BIGWASH-AFJ-VERIFY",
+            "number": 12345,
+            "flag": true,
+            "list": [
+              "afj",
+              "verify"
+            ]
+          },
+          "actual": {
+            "kind": "fl_verify",
+            "run_id": "1787311283845-28445",
+            "value": "BIGWASH-AFJ-VERIFY",
+            "number": 12345,
+            "flag": true,
+            "list": [
+              "afj",
+              "verify"
+            ]
+          },
+          "captured_at": "2026-08-21T11:21:25.457Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"verify\" \"/tmp/fl-verify-afj-db-kllQdf/db\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 474,
+          "stdout": "{\"ok\":true,\"records\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"key_count\":1,\"errors\":[]}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:25.931Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"replay\" \"/tmp/fl-verify-afj-db-kllQdf/db\" \"/tmp/fl-verify-afj-db-kllQdf/replay\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 468,
+          "stdout": "{\"ok\":true,\"pass\":true,\"source_records\":1,\"records\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"key_count\":1,\"source_verify\":{\"ok\":true,\"records\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"key_count\":1,\"errors\":[]},\"write_result\":{\"ok\":true,\"value\":true},\"verify\":{\"ok\":true,\"records\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"key_count\":1,\"errors\":[]},\"profile\":{\"event_read\":{\"start_ms\":1787311286353,\"end_ms\":1787311286355,\"duration_ms\":2},\"event_parse\":{\"start_ms\":1787311286355,\"end_ms\":1787311286355,\"duration_ms\":0},\"event_normalize\":{\"start_ms\":1787311286355,\"end_ms\":1787311286357,\"duration_ms\":2},\"replay_apply\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"state_update\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"index_update\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"hash_calculation\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"verify\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"report\":{\"start_ms\":1787311286357,\"end_ms\":1787311286357,\"duration_ms\":0},\"operations\":{\"load_events\":0,\"parse_lines\":0,\"normalize_events\":0,\"write_events\":1,\"index_state\":1,\"verify_events\":1}}}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:26.399Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"snapshot\" \"/tmp/fl-verify-afj-db-kllQdf/db\" \"/tmp/fl-verify-afj-db-kllQdf/snapshot.json\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 485,
+          "stdout": "{\"ok\":true,\"snapshot_path\":\"/tmp/fl-verify-afj-db-kllQdf/snapshot.json\",\"format\":\"AFJ_SNAPSHOT\",\"version\":\"1.0.0\",\"records\":1,\"key_count\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"bytes\":988,\"created_at\":1787311286839,\"write_result\":{\"ok\":true,\"value\":true}}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:26.884Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"restore\" \"/tmp/fl-verify-afj-db-kllQdf/snapshot.json\" \"/tmp/fl-verify-afj-db-kllQdf/restore\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 458,
+          "stdout": "{\"ok\":true,\"pass\":true,\"snapshot_path\":\"/tmp/fl-verify-afj-db-kllQdf/snapshot.json\",\"target_db\":\"/tmp/fl-verify-afj-db-kllQdf/restore\",\"records\":1,\"key_count\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"expected_records\":1,\"expected_key_count\":1,\"expected_head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"records_match\":true,\"key_count_match\":true,\"head_match\":true,\"write_result\":{\"ok\":true,\"value\":true},\"verify\":{\"ok\":true,\"records\":1,\"head_hash\":\"c15bd90c83b1fa36455cbc68f90eb57132038d08313736c83d57a03ffd5fac73\",\"key_count\":1,\"errors\":[]}}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:27.343Z"
+        },
+        {
+          "command": "remove temporary namespace /tmp/fl-verify-afj-db-kllQdf",
+          "status": "PASS",
+          "exit_code": 0,
+          "captured_at": "2026-08-21T11:21:27.350Z"
+        }
+      ]
+    },
+    "api": {
+      "name": "api",
+      "required": true,
+      "status": "PASS",
+      "command": "node ../../../freelang-v11/bootstrap.js run app.fl",
+      "front": {
+        "name": "front",
+        "required": true,
+        "status": "PASS",
+        "reason": "Front route/API/AFJ DB contract passed",
+        "build": "PASS",
+        "start": "PASS",
+        "routes": "PASS",
+        "render": "PASS",
+        "api": "PASS",
+        "afj_db": "PASS",
+        "issues": "NOT_APPLICABLE",
+        "stop": "PASS",
+        "error_code": null,
+        "evidence": [
+          {
+            "name": "GET /",
+            "status": "PASS",
+            "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+            "method": "GET",
+            "route": "/",
+            "http_status": 200,
+            "duration_ms": 37,
+            "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+            "exit_code": 0,
+            "error_code": null,
+            "message": null,
+            "suggestion": null,
+            "captured_at": "2026-08-21T11:21:28.964Z"
+          },
+          {
+            "name": "GET /",
+            "status": "PASS",
+            "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+            "method": "GET",
+            "route": "/",
+            "http_status": 200,
+            "duration_ms": 37,
+            "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+            "exit_code": 0,
+            "error_code": null,
+            "message": null,
+            "suggestion": null,
+            "captured_at": "2026-08-21T11:21:28.964Z"
+          },
+          {
+            "name": "GET /",
+            "status": "PASS",
+            "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+            "method": "GET",
+            "route": "/",
+            "http_status": 200,
+            "duration_ms": 37,
+            "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+            "exit_code": 0,
+            "error_code": null,
+            "message": null,
+            "suggestion": null,
+            "captured_at": "2026-08-21T11:21:28.964Z"
+          },
+          {
+            "name": "GET /health",
+            "status": "PASS",
+            "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/health\"",
+            "method": "GET",
+            "route": "/health",
+            "http_status": 200,
+            "duration_ms": 43,
+            "response_summary": {
+              "status": "ok",
+              "runtime": "FreeLang AFJ"
+            },
+            "exit_code": 0,
+            "error_code": null,
+            "message": null,
+            "suggestion": null,
+            "captured_at": "2026-08-21T11:21:29.007Z"
+          },
+          {
+            "name": "GET /api/customers/customer-1787311289108110615",
+            "status": "PASS",
+            "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/api/customers/customer-1787311289108110615\"",
+            "method": "GET",
+            "route": "/api/customers/customer-1787311289108110615",
+            "http_status": 200,
+            "duration_ms": 567,
+            "response_summary": {
+              "id": "customer-1787311289108110615",
+              "name": "BIGWASH TEST",
+              "phone": "01000000000"
+            },
+            "exit_code": 0,
+            "error_code": null,
+            "message": null,
+            "suggestion": null,
+            "captured_at": "2026-08-21T11:21:30.697Z"
+          }
+        ]
+      },
+      "exit_code": 0,
+      "duration_ms": 6428,
+      "reason": "FreeLang AFJ backend HTTP/API/AFJ DB flow passed",
+      "backend": "freelang-afj",
+      "port": 44582,
+      "namespace": "/tmp/fl-verify-afj-api-EEsVK8",
+      "start": "PASS",
+      "health": "PASS",
+      "write": "PASS",
+      "db_read": "PASS",
+      "read": "PASS",
+      "compare": "PASS",
+      "validation": "PASS",
+      "stop": "PASS",
+      "error_code": null,
+      "phase": null,
+      "message": null,
+      "suggestion": null,
+      "evidence": [
+        {
+          "command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl api-bin",
+          "status": "PASS",
+          "exit_code": 0,
+          "stdout": "🔨 FreeLang 네이티브 빌드\n   입력: app.fl\n   출력: api-bin\n\n🧠 시맨틱 분석...\n   ✅ 시맨틱 OK\n⚙️  FL → C 컴파일...\nCompiled C /tmp/fl_preprocessed_29054.fl -> /tmp/fl_build_29054.c\n🔍 C 타입 사전 검사...\n   ✅ 타입 OK\n⚙️  C → 바이너리 컴파일...\n   + MariaDB dlopen 바인딩 포함\n   ✅ libfx.a 캐시 사용\n   ✅ app.o 캐시 사용\n\n✅ 빌드 완료: ./api-bin\n   크기: 232K\n   실행: ./api-bin",
+          "stderr": "[fl-build] 전처리 완료",
+          "captured_at": "2026-08-21T11:21:28.455Z"
+        },
+        {
+          "name": "api_start",
+          "command": "node ../../../freelang-v11/bootstrap.js run app.fl",
+          "pid": 29137,
+          "port": 44582,
+          "status": "PASS",
+          "stdout_path": "/tmp/fl-verify-afj-api-EEsVK8/server.stdout.log",
+          "stderr_path": "/tmp/fl-verify-afj-api-EEsVK8/server.stderr.log",
+          "captured_at": "2026-08-21T11:21:28.926Z"
+        },
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /health",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/health\"",
+          "method": "GET",
+          "route": "/health",
+          "http_status": 200,
+          "duration_ms": 43,
+          "response_summary": {
+            "status": "ok",
+            "runtime": "FreeLang AFJ"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:29.007Z"
+        },
+        {
+          "name": "POST /api/customers",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"POST\" \"-H\" \"Content-Type: application/json\" \"--data\" \"{\\\"name\\\":\\\"BIGWASH TEST\\\",\\\"phone\\\":\\\"01000000000\\\"}\" \"http://127.0.0.1:44582/api/customers\"",
+          "method": "POST",
+          "route": "/api/customers",
+          "http_status": 201,
+          "duration_ms": 636,
+          "response_summary": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:29.644Z"
+        },
+        {
+          "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"read-key\" \"/tmp/fl-verify-afj-api-EEsVK8/db\" \"customer-1787311289108110615\"",
+          "status": "PASS",
+          "exit_code": 0,
+          "duration_ms": 485,
+          "stdout": "{\"seq\":1,\"key\":\"customer-1787311289108110615\",\"value\":{\"id\":\"customer-1787311289108110615\",\"name\":\"BIGWASH TEST\",\"phone\":\"01000000000\"}}",
+          "stderr": "",
+          "captured_at": "2026-08-21T11:21:30.129Z"
+        },
+        {
+          "status": "PASS",
+          "front_api": "PASS",
+          "afj_db": "PASS",
+          "expected_phone": "01000000000",
+          "actual": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "captured_at": "2026-08-21T11:21:30.130Z"
+        },
+        {
+          "name": "GET /api/customers/customer-1787311289108110615",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/api/customers/customer-1787311289108110615\"",
+          "method": "GET",
+          "route": "/api/customers/customer-1787311289108110615",
+          "http_status": 200,
+          "duration_ms": 567,
+          "response_summary": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:30.697Z"
+        },
+        {
+          "status": "PASS",
+          "expected": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "api_read": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "afj_db_read": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "captured_at": "2026-08-21T11:21:30.697Z"
+        },
+        {
+          "name": "POST /api/customers",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"POST\" \"-H\" \"Content-Type: application/json\" \"--data\" \"{\\\"name\\\":\\\"TEST\\\"}\" \"http://127.0.0.1:44582/api/customers\"",
+          "method": "POST",
+          "route": "/api/customers",
+          "http_status": 400,
+          "duration_ms": 37,
+          "response_summary": {
+            "error": "PHONE_REQUIRED"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:30.735Z"
+        },
+        {
+          "command": "terminate FreeLang AFJ backend process group",
+          "pid": 29137,
+          "status": "PASS",
+          "stdout_path": "/tmp/fl-verify-afj-api-EEsVK8/server.stdout.log",
+          "stderr_path": "/tmp/fl-verify-afj-api-EEsVK8/server.stderr.log",
+          "captured_at": "2026-08-21T11:21:33.770Z"
+        }
+      ]
+    },
+    "front": {
+      "name": "front",
+      "required": true,
+      "status": "PASS",
+      "reason": "Front route/API/AFJ DB contract passed",
+      "build": "PASS",
+      "start": "PASS",
+      "routes": "PASS",
+      "render": "PASS",
+      "api": "PASS",
+      "afj_db": "PASS",
+      "issues": "NOT_APPLICABLE",
+      "stop": "PASS",
+      "error_code": null,
+      "evidence": [
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/\"",
+          "method": "GET",
+          "route": "/",
+          "http_status": 200,
+          "duration_ms": 37,
+          "response_summary": "radius:8px;min-height:24px}</style></head><body><h1>FreeLang Front Customer</h1><label>Name<input id='name' value='BIGWASH TEST'></label><label>Phone<input id='phone' value='01000000000'></label><button id='save'>Save</button><div id='result'>Ready</div><script nonce=\"3SFAOJvTzxqK4MND2b0yrw\">const result=document.getElementById('result');let savedId=null;async function save(){const name=document.getElementById('name').value;const phone=document.getElementById('phone').value;const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone})});const d=await r.json();if(!r.ok){result.textContent=d.error;return;}savedId=d.id;result.dataset.customerId=d.id;result.textContent=d.name+' / '+d.phone;const read=await fetch('/api/customers/'+d.id);const rd=await read.json();result.dataset.readPhone=rd.phone;result.textContent=rd.name+' / '+rd.phone;}document.getElementById('save').addEventListener('click',save);</script></body></html>",
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:28.964Z"
+        },
+        {
+          "name": "GET /health",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/health\"",
+          "method": "GET",
+          "route": "/health",
+          "http_status": 200,
+          "duration_ms": 43,
+          "response_summary": {
+            "status": "ok",
+            "runtime": "FreeLang AFJ"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:29.007Z"
+        },
+        {
+          "name": "GET /api/customers/customer-1787311289108110615",
+          "status": "PASS",
+          "command": "\"curl\" \"-sS\" \"-o\" \"-\" \"-w\" \"\\n%{http_code}\" \"-X\" \"GET\" \"-H\" \"Content-Type: application/json\" \"http://127.0.0.1:44582/api/customers/customer-1787311289108110615\"",
+          "method": "GET",
+          "route": "/api/customers/customer-1787311289108110615",
+          "http_status": 200,
+          "duration_ms": 567,
+          "response_summary": {
+            "id": "customer-1787311289108110615",
+            "name": "BIGWASH TEST",
+            "phone": "01000000000"
+          },
+          "exit_code": 0,
+          "error_code": null,
+          "message": null,
+          "suggestion": null,
+          "captured_at": "2026-08-21T11:21:30.697Z"
+        }
+      ]
+    },
+    "browser": {
+      "name": "browser",
+      "required": true,
+      "status": "BLOCKED",
+      "command": null,
+      "exit_code": null,
+      "duration_ms": 0,
+      "error_code": "FL_BROWSER_UNAVAILABLE",
+      "reason": "Chrome/Chromium is not installed; browser smoke was not executed",
+      "suggestion": "install Chrome/Chromium and configure the existing fl-browser.js scenario",
+      "evidence": [
+        {
+          "status": "BLOCKED",
+          "reason": "no Chrome/Chromium executable found",
+          "scenario": "open / -> input name/phone -> click Save -> POST /api/customers -> GET /api/customers/:id -> refresh -> compare display and console/network"
+        }
+      ]
+    },
+    "flsc": {
+      "name": "flsc",
+      "required": false,
+      "status": "SKIP",
+      "command": null,
+      "exit_code": null,
+      "duration_ms": 0,
+      "reason": "use --with-flsc",
+      "evidence": []
+    }
+  }
+}

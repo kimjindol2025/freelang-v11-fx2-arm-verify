@@ -1,0 +1,4 @@
+(defn invalid []
+  (let [$known 1]
+    (+ $known $missing)))
+(println (invalid))

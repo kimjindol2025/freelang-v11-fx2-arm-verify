@@ -1,0 +1,118 @@
+{
+  "done_claim_version": "1.0.0",
+  "claim_id": "claim-ai-native-afj-api-smoke-verify",
+  "contract_id": "contract-ai-native-afj-api-smoke-verify",
+  "project": "ai-native-afj-api-smoke",
+  "work_item": "language-core-runtime-parity",
+  "source": {
+    "repository": "/root/lang/freelang-v11-fx2/tests/ai-native-afj-api-smoke",
+    "changed_paths": [
+      "app.fl"
+    ],
+    "source_state": "dirty-working-tree",
+    "working_tree_hash": "0565500c9958adb3ba26b8041ca797fba643d1949936263ad95eb8e0c2688684"
+  },
+  "target_truth": {
+    "runtime": "freelang-v11-fx2",
+    "entrypoint": "app.fl",
+    "environment_hash": "0565500c9958adb3ba26b8041ca797fba643d1949936263ad95eb8e0c2688684"
+  },
+  "gates": [
+    {
+      "gate_id": "project",
+      "gate_type": "schema",
+      "status": "pass",
+      "command": "project manifest discovery",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "syntax",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "node ../../../freelang-v11/bootstrap.js check app.fl",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "type",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-type --check >/tmp/fl-afj-api-type.log 2>&1",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "interpreter",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "FL_API_CHECK=1 node ../../../freelang-v11/bootstrap.js run app.fl",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "native",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "FL_API_CHECK=1 CGC_BIN=../../../freelang-v11/bin/cgc-bin bash ../../../freelang-v11-fx2/fl-build.sh app.fl /tmp/fl-afj-api-native >/tmp/fl-afj-api-native.log 2>&1 && /tmp/fl-afj-api-native",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "parity",
+      "gate_type": "integrity",
+      "status": "pass",
+      "command": "configured parity cases",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "afj_db",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "\"/data/data/com.termux/files/usr/bin/node\" \"/root/lang/afl-db/v2-afj/src/cli.js\" \"build\"",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    },
+    {
+      "gate_id": "api",
+      "gate_type": "test",
+      "status": "pass",
+      "command": "node ../../../freelang-v11/bootstrap.js run app.fl",
+      "exit_code": 0,
+      "evidence_refs": [
+        "evidence://verify-execution"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "verify-execution",
+      "evidence_type": "execution_log",
+      "path": "/root/lang/freelang-v11-fx2/tests/ai-native-afj-api-smoke/.fl-verify/evidence/freelang-verify-execution.json",
+      "sha256": "0565500c9958adb3ba26b8041ca797fba643d1949936263ad95eb8e0c2688684"
+    }
+  ],
+  "trace_refs": [],
+  "repairs": [],
+  "done_claim_pass": true,
+  "patch_scope": {
+    "changed_paths": [
+      "app.fl"
+    ]
+  }
+}

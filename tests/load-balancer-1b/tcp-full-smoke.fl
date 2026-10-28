@@ -1,0 +1,95 @@
+(defn server-once [$fd]
+  (let [$a (fxb-net-accept-timeout $fd 3000)]
+    (if (= (get $a "status") "ok")
+      (let [$c (get $a "fd")
+            $r (fxb-net-read-timeout $c 256 3000)]
+        (if (= (get $r "status") "ok")
+          (let [$w (fxb-net-write-timeout $c (get $r "data") 3000)]
+            (fxb-net-close $c)
+            (= (get $w "bytes") (get $r "bytes")))
+          false))
+      false)))
+
+
+(defn payload-for [$id]
+  (str "ping-" (num-to-str $id)))
+(defn server-100 [$fd $n $received]
+  (if (<= $n 0) $received
+    (let [$a (fxb-net-accept-timeout $fd 3000)]
+      (if (= (get $a "status") "ok")
+        (let [$c (get $a "fd") $r (fxb-net-read-timeout $c 256 3000)
+              $payload (get $r "data")
+              $w (if (= (get $r "status") "ok") (fxb-net-write-timeout $c $payload 3000) {:bytes 0})]
+          (fxb-net-close $c)
+          (server-100 $fd (- $n 1) (push $received $payload)))
+        $received))))
+(defn client [$port $id]
+  (let [$expected (payload-for $id) $c (fxb-net-connect-timeout "127.0.0.1" $port 3000)]
+    (if (= (get $c "status") "ok")
+      (let [$fd (get $c "fd") $w (fxb-net-write-timeout $fd $expected 3000)
+            $r (fxb-net-read-timeout $fd 256 3000)]
+        (fxb-net-close $fd)
+        [$id (and (= (get $w "bytes") (length $expected)) (= (get $r "status") "ok") (= (get $r "data") $expected))])
+      [$id false])))
+(defn launch-clients [$port $i $acc]
+  (if (<= $i 0) $acc
+    (launch-clients $port (- $i 1) (push $acc (fl-future (fn [] (client $port $i)))))))
+(defn collect-results [$xs $i $acc]
+  (if (>= $i (length $xs)) $acc
+    (collect-results $xs (+ $i 1) (push $acc (fl-deref (get $xs $i))))))
+(defn count-results [$xs $i $success $failed $seen $duplicate]
+  (if (>= $i (length $xs)) [$success $failed $seen $duplicate]
+    (let [$r (get $xs $i) $id (get $r 0) $ok (get $r 1)
+          $dup (if (fl-contains-p $seen $id) (+ $duplicate 1) $duplicate)
+          $next-seen (if (fl-contains-p $seen $id) $seen (push $seen $id))]
+      (count-results $xs (+ $i 1) (if $ok (+ $success 1) $success)
+        (if $ok $failed (+ $failed 1)) $next-seen $dup)))))
+(defn count-server [$xs $i $seen $duplicate $mismatch $expected]
+  (if (>= $i (length $xs)) [(length $xs) $duplicate $mismatch]
+    (let [$payload (get $xs $i) $dup (if (fl-contains-p $seen $payload) (+ $duplicate 1) $duplicate)
+          $next-seen (if (fl-contains-p $seen $payload) $seen (push $seen $payload))
+          $want (payload-for (+ $i 1))]
+      (count-server $xs (+ $i 1) $next-seen $dup (if (fl-contains-p $expected $payload) $mismatch (+ $mismatch 1)) $expected))))))
+(defn expected-payloads [$i $acc]
+  (if (> $i 100) $acc
+    (expected-payloads (+ $i 1) (push $acc (payload-for $i)))))
+
+(defn ids-complete [$i $seen]
+  (if (> $i 100) true
+    (and (fl-contains-p $seen $i) (ids-complete (+ $i 1) $seen))))
+
+(defn concurrent-100 []
+  (let [$s (fxb-net-listen-address "127.0.0.1" 19231)]
+    (fxb-net-set-nonblocking $s true)
+    (let [$server (fl-future (fn [] (server-100 $s 100 [])))]
+      (fl-sleep-ms 50)
+      (let [$clients (launch-clients 19231 100 []) $results (collect-results $clients 0 [])
+            $client-counts (count-results $results 0 0 0 [] 0)
+            $server-counts (count-server (fl-deref $server) 0 [] 0 0 (expected-payloads 1 []))]
+        (fxb-net-close $s)
+          
+        (println (str "ATTEMPTED=100 SERVER_RECEIVED=" (get $server-counts 0)
+          " SUCCESS=" (get $client-counts 0) " FAILED=" (get $client-counts 1)
+          " DUPLICATE=" (+ (get $client-counts 3) (get $server-counts 1))
+          " MISSING=" (- 100 (length (get $client-counts 2)))
+          " PAYLOAD_MISMATCH=" (get $server-counts 2)))
+        (and (= (get $server-counts 0) 100) (= (get $client-counts 0) 100)
+          (= (get $client-counts 1) 0) (= (get $client-counts 3) 0)
+          (= (get $server-counts 1) 0) (= (get $server-counts 2) 0)
+          (= (length (get $client-counts 2)) 100) (ids-complete 1 (get $client-counts 2)))))))
+(defn timeout-and-keepalive []
+  (let [$s (fxb-net-listen-address "127.0.0.1" 19232)]
+    (fxb-net-set-nonblocking $s true)
+    (let [$c (fxb-net-connect-timeout "127.0.0.1" 19232 3000)
+          $a (fxb-net-accept-timeout $s 3000)
+          $fd (get $a "fd")
+          $r (fxb-net-read-timeout $fd 16 100)
+          $ka (fxb-net-set-keepalive $fd true 60 10 3)
+          $sh (fxb-net-listener-shutdown $s 100)]
+      (fxb-net-close $fd)
+      (fxb-net-close (get $c "fd"))
+      (and (= (get $r "status") "timeout") $ka (= (get $sh "status") "ok")))))
+
+(if (and (concurrent-100) (timeout-and-keepalive))
+  (println "tcp-full-smoke PASS")
+  (println "tcp-full-smoke FAIL"))

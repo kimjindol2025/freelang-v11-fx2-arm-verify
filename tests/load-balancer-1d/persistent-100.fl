@@ -1,0 +1,27 @@
+(defn msg [$i] (str "msg-" (num-to-str $i)))
+(defn server-loop [$fd $n $ok]
+  (if (> $n 100) $ok
+    (let [$r (fxb-net-read-timeout $fd 256 3000) $want (msg $n)
+          $good (and (= (get $r "status") "ok") (= (get $r "data") $want))
+          $w (if $good (fxb-net-write-timeout $fd $want 3000) {:bytes 0})]
+      (server-loop $fd (+ $n 1) (and $ok $good (= (get $w "bytes") (length $want)))))))
+(defn client-loop [$fd $n $ok]
+  (if (> $n 100) $ok
+    (let [$want (msg $n) $w (fxb-net-write-timeout $fd $want 3000)
+          $r (fxb-net-read-timeout $fd 256 3000)]
+      (client-loop $fd (+ $n 1) (and $ok (= (get $w "bytes") (length $want)) (= (get $r "data") $want))))))
+(defn run []
+  (let [$s (fxb-net-listen-address "127.0.0.1" 19241)]
+    (fxb-net-set-nonblocking $s true)
+    (let [$server (fl-future (fn []
+                    (let [$a (fxb-net-accept-timeout $s 3000)]
+                      (if (= (get $a "status") "ok")
+                        (let [$fd (get $a "fd") $r (server-loop $fd 1 true)]
+                          (fxb-net-close $fd) $r)
+                        false))))]
+      (fl-sleep-ms 50)
+      (let [$c (fxb-net-connect-timeout "127.0.0.1" 19241 3000) $fd (get $c "fd")
+            $cr (client-loop $fd 1 true) $e (fxb-net-read-timeout $fd 16 100)]
+        (fxb-net-close $fd) (fxb-net-close $s)
+        (and $cr (= (fl-deref $server) true) (= (get $e "status") "eof"))))))
+(if (run) (println "persistent-100 PASS") (println "persistent-100 FAIL"))

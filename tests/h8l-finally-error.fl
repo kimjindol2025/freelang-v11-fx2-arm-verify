@@ -1,0 +1,3 @@
+(try
+  (println "H8L_TRY_PASS")
+  (finally (throw "finally-error")))
