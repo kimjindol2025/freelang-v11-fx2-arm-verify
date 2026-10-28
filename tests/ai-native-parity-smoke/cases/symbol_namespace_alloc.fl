@@ -1,0 +1,2 @@
+(defn alloc [$value] $value)
+(println (alloc 17))

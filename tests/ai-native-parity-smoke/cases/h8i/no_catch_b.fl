@@ -1,0 +1,2 @@
+(load "../h8i/no_catch_a.fl")
+(defn h8i_no_catch_module_call [] (h8i_no_catch_raise))

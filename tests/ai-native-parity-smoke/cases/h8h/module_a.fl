@@ -1,0 +1,25 @@
+(define h8h_a_text "cross-module")
+(define h8h_a_nums (list 1 2 3 4))
+(define h8h_a_map {"left" 10 "right" 20})
+
+(defn h8h_a_payload
+  []
+  {"text" h8h_a_text
+   "nums" h8h_a_nums
+   "map" h8h_a_map})
+
+(defn h8h_a_double
+  [$value]
+  (* $value 2))
+
+(defn h8h_a_collect_with_callback
+  [$items $callback]
+  (map $callback $items))
+
+(defn h8h_a_divide
+  [$value $divisor]
+  (/ $value $divisor))
+
+(defn h8h_a_map_value
+  [$key]
+  (get (get (h8h_a_payload) "map") $key))

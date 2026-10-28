@@ -1,0 +1,7 @@
+(load "./h8h/module_a.fl")
+(load "./h8h/module_b.fl")
+
+(println (h8h_b_stale_handle_probe))
+(load "./h8h/module_a.fl")
+(load "./h8h/module_b.fl")
+(println (h8h_b_stale_handle_probe))

@@ -1,0 +1,1 @@
+(defn h8i_no_catch_raise [] (try (throw 73)))
